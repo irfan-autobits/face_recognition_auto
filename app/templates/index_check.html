@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Feed</title>
+    <style>
+        .camera-feed {
+            display: inline-block;
+            margin: 10px;
+        }
+        .status {
+            font-size: 14px;
+            font-weight: bold;
+            color: red; /* Default to red (off) */
+        }
+        .status.on {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>Camera Feeds</h1>
+    <div id="camera-manage">
+        <input type="text" id="camera_name" placeholder="Enter camera name">
+        <input type="text" id="camera_url" placeholder="Enter camera URL">
+        <button id="add_camera">Add Camera</button>
+    </div>
+    
+    <div id="camera-status">
+        <!-- Dynamic camera feeds will be displayed here -->
+    </div>
+
+    <div id="camera-feeds">
+        <!-- Dynamic camera feeds will be displayed here -->
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <script>
+        var socket = io.connect('http://' + document.domain + ':' + location.port);
+        var Cameras_list = {};
+        
+        socket.on('frame', function(data) {
+            var cameraName = data.camera_name;
+            var status = data.status;
+            var imageData = data.image;
+            Cameras_list[cameraName] = status
+
+            // Find the camera feed element or create it
+            var cameraElement = document.getElementById('camera_' + cameraName);
+            if (!cameraElement) {
+                cameraElement = document.createElement('div');
+                cameraElement.id = 'camera_' + cameraName;
+                cameraElement.className = 'camera-feed';
+                cameraElement.innerHTML = '<h3>' + cameraName + '</h3><img id="feed_' + cameraName + '" src="" width="320">';
+                document.getElementById('camera-feeds').appendChild(cameraElement);
+            }
+
+            // Update the image source
+            if (imageData) {
+                document.getElementById('feed_' + cameraName).src = 'data:image/jpeg;base64,' + imageData;
+            }
+
+            // Update the status
+            var statusElement = document.getElementById('status_' + cameraName);
+            statusElement.textContent = 'Status: ' + (status === 'on' ? 'Camera is ON' : 'Camera is OFF');
+            statusElement.className = 'status ' + status;     
+
+            document.getElementById('start_' + cameraName + '_btn').onclick = function() {
+                console.log(`start ${cameraName} feed`);
+                console.log('camera dic', Cameras_list);
+                fetch('start_feed', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({camera_name: cameraName})
+                })
+                .then(response => response.json())
+                .then(data => console.log(data));
+                status = 'on';
+           
+            };
+
+            document.getElementById('stop_' + cameraName + '_btn').onclick = function() {
+                console.log(`stop ${cameraName} feed`);
+                console.log('camera dic', Cameras_list);
+                fetch('/stop_feed', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({camera_name: cameraName})
+                })
+                .then(response => response.json())
+                .then(data => console.log(data));
+                status = 'off';
+            };              
+            
+        });
+    </script>
+</body>
+</html>

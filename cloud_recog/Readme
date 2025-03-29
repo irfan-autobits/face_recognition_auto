@@ -1,0 +1,29 @@
+# build image
+docker build -t rec-gpu .
+docker build -t insightface-app .
+docker build -t insightface-app -f re.Dockerfile .
+
+docker run --gpus all -p 5001:5001 --rm insightface-app
+docker run --runtime nvidia -p 5001:5001 -it rec-gpu
+docker run --runtime nvidia --gpus all -p 5001:5001 --name rec-gpu rec-gpu
+docker run --runtime nvidia --gpus all -p 5001:5001 --name rec-gpu -v "$(pwd)":/app rec-gpu
+
+docker stop $(docker ps -a -q)
+docker run --gpus all -p 5001:5001 rec-gpu
+
+# run shell by 
+chmod +x setup_gpu_docker.sh
+./setup_gpu_docker.sh
+
+# build docker 
+docker-compose up --build -d
+
+echo $PATH
+ls -l /usr/local/bin/uwsgi
+
+cat /etc/group
+id appuser
+id -Gn
+
+docker run -it --rm insightface-app bash
+docker run -it --rm --gpus all insightface-app bash

@@ -1,0 +1,17 @@
+flask-socketio
+flask-cors
+flask-sqlalchemy
+python-dotenv
+PyJWT
+pytz
+attrs
+scikit-image
+opencv-python
+bcrypt
+cached-property
+gdown
+psycopg2
+uwsgi
+insightface
+psutil
+onnxruntime-gpu

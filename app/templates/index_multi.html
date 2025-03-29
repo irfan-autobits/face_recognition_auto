@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Camera Video Streaming</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.0/socket.io.min.js"></script>
+</head>
+<body>    
+    <h1>Live Video Feed</h1>
+    <div id="camera-container" style="display: flex; flex-wrap: wrap;">
+        <!-- Camera feeds will be inserted here dynamically -->
+    </div>
+
+    <script>
+        const cameraNames = ['Holl', 'Office', 'Team', 'Room'];
+        const container = document.getElementById('camera-container');
+
+        // Dynamically create camera feed elements
+        cameraNames.forEach(name => {
+            const cameraDiv = document.createElement('div');
+            cameraDiv.id = `camera-${name}`;
+            cameraDiv.style.flex = '1 1 50%';
+            cameraDiv.innerHTML = `<h2>${name}</h2><img id="video-${name}" width="640" height="360" />`;
+            container.appendChild(cameraDiv);
+        });
+
+        const socket = io.connect('http://' + document.domain + ':' + location.port);
+
+        // Listen for frames from the server
+        socket.on('frame', function(data) {
+            const img = document.getElementById('video-' + data.camera_name);
+            if (img) {
+                img.src = 'data:image/jpeg;base64,' + data.image;
+            }
+        });
+    </script>
+</body>
+</html>
