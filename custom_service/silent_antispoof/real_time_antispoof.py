@@ -11,9 +11,9 @@ import numpy as np
 import warnings
 import time
 
-from custom_service.insightface_bundle.silent_antispoof.anti_spoof_predict import AntiSpoofPredict
-from custom_service.insightface_bundle.silent_antispoof.generate_patches import CropImage
-from custom_service.insightface_bundle.silent_antispoof.utility import parse_model_name
+from custom_service.silent_antispoof.anti_spoof_predict import AntiSpoofPredict
+from custom_service.silent_antispoof.generate_patches import CropImage
+from custom_service.silent_antispoof.utility import parse_model_name
 warnings.filterwarnings('ignore')
 
 

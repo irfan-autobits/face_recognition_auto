@@ -1,4 +1,4 @@
-# final-compre/config/Paths.py
+# config/Paths.py
 import json
 import os
 from pathlib import Path
@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from threading import Lock
 
 # Load environment variables from the .env file
-load_dotenv()
+load_dotenv(override=True)
 
 # Define the base directory as the directory where the script is located
 BASE_DIR = Path(__file__).resolve().parent.parent

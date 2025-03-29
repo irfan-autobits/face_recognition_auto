@@ -13,9 +13,9 @@ import numpy as np
 import torch.nn.functional as F
 
 
-from custom_service.insightface_bundle.silent_antispoof.MiniFASNet import MiniFASNetV1, MiniFASNetV2,MiniFASNetV1SE,MiniFASNetV2SE
-import custom_service.insightface_bundle.silent_antispoof.transform as trans
-from custom_service.insightface_bundle.silent_antispoof.utility import get_kernel, parse_model_name
+from custom_service.silent_antispoof.MiniFASNet import MiniFASNetV1, MiniFASNetV2,MiniFASNetV1SE,MiniFASNetV2SE
+import custom_service.silent_antispoof.transform as trans
+from custom_service.silent_antispoof.utility import get_kernel, parse_model_name
 
 MODEL_MAPPING = {
     'MiniFASNetV1': MiniFASNetV1,

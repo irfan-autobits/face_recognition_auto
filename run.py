@@ -1,4 +1,4 @@
-# final-compre/run.py
+# run.py
 import json
 import traceback
 from flask import Flask
@@ -47,7 +47,7 @@ with app.app_context():
     manage_table(spec = True) # drop all tables
     db_url = app.config['SQLALCHEMY_DATABASE_URI']
     print(f"dburl: {db_url}")
-    import_tab(db_url)
+    # import_tab(db_url)
     responce, status = Default_cameras()
 
 face_processor = FaceDetectionProcessor(cam_sources, db.session, app)
@@ -78,7 +78,7 @@ def send_frame():
                         frame_count[cam_name] += 1
                         if frame is not None:
                             if frame_count[cam_name] % log_interval == 0:
-                                cam_stat_logger.debug(f"Processed {frame_count[cam_name]} frames from camera {cam_name} at {fps:.2f} FPS")
+                                cam_stat_logger.debug(f"Processed {frame_count[cam_name]} frames from camera {cam_name}")
                             if frame_count[cam_name] % 6 < 3 and is_compre:
                                 start_time[cam_name] = time.time()  # Start timing before reading the frame
                                 

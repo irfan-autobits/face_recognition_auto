@@ -1,4 +1,4 @@
-# final-compre/scripts/manage_db.py
+# scripts/manage_db.py
 from app.models.model import db, Detection, Camera_list, Face_recog_User
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy import create_engine, MetaData, Table
@@ -19,7 +19,7 @@ def manage_table(purge=False, drop=False, spec=False):
             # Detection.__table__.drop(db.engine)
             db.session.commit()
             db.create_all()
-            print("Dropped everything apart from Detection.")
+            print("Dropped Camera_list and Face_recog_User but not Detection and Embedding.")
         elif drop:
             db.drop_all()
             db.create_all()

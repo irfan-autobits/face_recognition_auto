@@ -13,10 +13,10 @@ app = Flask(__name__)
 BASE_DIR = Path(__file__).resolve().parent
 
 # Define directories
-# SUBJECT_DIR = BASE_DIR / "custom_service" / "Pytorch_Retinaface" / "subjects_img" / "train"
-SUBJECT_DIR1 = BASE_DIR / "custom_service" / "Pytorch_Retinaface" / "subjects_img" / "Autobits_emp"
-# SUBJECT_DIR2 = BASE_DIR / "custom_service" / "Pytorch_Retinaface" / "subjects_img" / "Hathi_pic" 
-TEST_DIR = BASE_DIR / "custom_service" / "Pytorch_Retinaface" / "subjects_img" / "test"
+# SUBJECT_DIR = BASE_DIR / "subjects_img" / "train"
+SUBJECT_DIR1 = BASE_DIR / "subjects_img" / "Autobits_emp"
+SUBJECT_DIR2 = BASE_DIR / "subjects_img" / "Hathi_pic" 
+TEST_DIR = BASE_DIR / "subjects_img" / "test"
 MODELS_DIR = BASE_DIR / ".models"
 TEST_RES_DIR = BASE_DIR / "Vis_res" / "Test" # Folder for saving visualization images
 TRAIN_RES_DIR = BASE_DIR / "Vis_res" / "Train" # Folder for saving visualization images
@@ -51,7 +51,7 @@ with app.app_context():
 # ----------------- Initialize InsightFace -----------------
 # Initialize the InsightFace app with detection and recognition modules.
 model_zoo = ['buffalo_l', 'buffalo_m', 'buffalo_s']
-model_pack_name = model_zoo[1]
+model_pack_name = model_zoo[0]
 analy_app = FaceAnalysis(name=model_pack_name ,allowed_modules=['detection', 'landmark_3d_68','recognition'])
 # analy_app = FaceAnalysis(allowed_modules=['detection', 'recognition'])
 analy_app.prepare(ctx_id=0, det_size=(640, 640))
@@ -101,8 +101,8 @@ def add_subjects():
     valid_extensions = (".jpg", ".jpeg", ".png")
     
     # for image_path in SUBJECT_DIR.glob("*"):
-    # for image_path in itertools.chain(SUBJECT_DIR1.glob("*"), SUBJECT_DIR2.glob("*")):
-    for image_path in SUBJECT_DIR1.glob("*"):
+    for image_path in itertools.chain(SUBJECT_DIR1.glob("*"), SUBJECT_DIR2.glob("*")):
+    # for image_path in SUBJECT_DIR1.glob("*"):
         if image_path.suffix.lower() in valid_extensions:
             # Derive subject name from file name
             subject_name = image_path.stem.replace("_", " ").title()

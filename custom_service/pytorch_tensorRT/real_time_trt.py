@@ -1,7 +1,7 @@
 # from insightface.app import FaceAnalysis    
 # from app import FaceAnalysis    
 import time
-from model_zoo import get_model
+from .model_zoo import get_model
 import numpy as np
 from custom_service.insightface_bundle.verify_euclidean_dis import verify_identity
 from app.models.model import Raw_Embedding, db
@@ -9,7 +9,7 @@ from flask import current_app
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 
 from custom_service.insightface_bundle.recog_split import recognize_faces
-from custom_service.insightface_bundle.silent_antispoof.real_time_antispoof import test
+from custom_service.silent_antispoof.real_time_antispoof import test
 from config.Paths import MODELS_DIR, model_pack_name, INSIGHT_MODELS
 spoof_dir = MODELS_DIR / "anti_spoof_models"
 # Initialize the InsightFace app with detection and recognition modules.
