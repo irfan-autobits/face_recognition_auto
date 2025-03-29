@@ -4,7 +4,7 @@ embedding_req/
 /Vis_res/
 models_config/
 subjects_img/
-
+.env
 weights/
 *.jpg
 *.jpeg
