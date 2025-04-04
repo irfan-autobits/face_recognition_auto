@@ -1,14 +1,15 @@
 # run.py
 import json
+import threading
 import traceback
 from flask import Flask
 from flask_socketio import SocketIO, emit
 import cv2
 import base64
-
 import torch
 # import nvtx
 from config.Paths import frame_lock, cam_sources, vs_list
+import config.Paths as paths
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 from config.config import Config
 from app.routes.Route import bp as video_feed_bp, active_cameras
@@ -91,11 +92,22 @@ def send_frame():
                                 frame_time[cam_name] = time.time() - start_time[cam_name] 
                                 exec_time_logger.debug(f"took {frame_time[cam_name]:.4f} seconds for camera {cam_name}")
 
-                            # Encode the frame as JPEG
-                            _, buffer = cv2.imencode('.jpg', frame)
-                            frame_data = base64.b64encode(buffer).decode('utf-8')
-                            # Emit the frame to the client via WebSocket
-                            socketio.emit('frame', {'camera_name': cam_name, 'image': frame_data})
+                                # At the beginning of processing, read the active camera safely:
+                                # At the beginning of processing, read the active camera safely:
+                                with paths.active_camera_lock:
+                                    current_active_camera = paths.active_camera
+                                if cam_name == current_active_camera:
+                                    print(f"emitting for {cam_name}")
+                                    if frame_count[cam_name] % 3 == 0:
+                                        cam_stat_logger.debug(f"emmitting frames for camera {cam_name}")
+                                    # Now, only emit if this camera is active
+                                    _, buffer = cv2.imencode('.jpg', frame)
+                                    frame_data = base64.b64encode(buffer).decode('utf-8')
+                                    socketio.emit('frame', {'camera_name': cam_name, 'image': frame_data})
+                                    
+                                else:
+                                    # Optionally, you might emit a placeholder or simply skip
+                                    pass                            
                         else:
                             if frame_count[cam_name] % log_interval == 0:
                                 cam_stat_logger.warning(f"No frame read from camera {cam_name} after {frame_count[cam_name]} attempts ")

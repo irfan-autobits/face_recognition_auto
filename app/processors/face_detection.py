@@ -7,12 +7,13 @@ from app.processors.Save_Face import save_image
 # from app.processors.emb_viz import visulize
 from app.models.model import db, Detection
 from config.Paths import FACE_REC_TH
-from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
+from config.logger_config import cam_stat_logger , console_logger, exec_time_logger, det_logger
 from datetime import datetime
 import timeit
 import time
 import psutil
 import ctypes
+from config.Paths import IS_GEN_REPORT
 
 class FaceDetectionProcessor:
     def __init__(self, camera_sources, db_session, app):
@@ -56,7 +57,7 @@ class FaceDetectionProcessor:
                 if probability <= 0.57:
                     continue
                 subject = result.get('subjects')[0]['subject']
-                similarity = result.get('subjects')[0]['similarity']
+                distance = result.get('subjects')[0]['similarity']
                 # execution_time = result.get('execution_time')
                 # detector_time = execution_time['detector']
                 # calc_time = execution_time['calculator']
@@ -64,7 +65,7 @@ class FaceDetectionProcessor:
                 is_unknown = False
                 # if similarity >= float(FACE_REC_TH):
                 # if probability > 0.57:
-                if similarity <= 1.17:
+                if distance <= 1.17:
                     color = (0, 255, 0)  # Green color for text                        
                 else:
                     color = (0, 0, 255)
@@ -74,24 +75,26 @@ class FaceDetectionProcessor:
                 # exec_time_logger.debug(f"detection - {detector_time/1000},calc - {calc_time/1000} camera :{cam_name} for {len(results)} result")
 
                 # visulize(embedding)
-                frame = Drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, similarity, draw_lan=False)  
-                # face_path = save_image(frame, cam_name, box, subject, similarity, is_unknown)
-                # # Use the app context explicitly
-                # with self.app.app_context():
-                #     detection = Detection(
-                #         camera_name=cam_name, 
-                #         det_face=face_path,
-                #         det_score=probability * 100,
-                #         person = subject, 
-                #         similarity=similarity,
-                #         timestamp=datetime.now()
-                #     )
-                #     self.db_session.add(detection)
-                #     self.db_session.commit()
+                frame = Drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, distance, draw_lan=False)  
+                if IS_GEN_REPORT:
+                    face_path = save_image(frame, cam_name, box, subject, distance, is_unknown)
+                    face_url = f"http://localhost:5757/faces/{face_path}"
+                    # Use the app context explicitly
+                    with self.app.app_context():
+                        detection = Detection(
+                            person = subject, 
+                            camera_name=cam_name, 
+                            det_score=probability * 100,
+                            distance=distance,
+                            timestamp=datetime.now(),
+                            det_face=face_url
+                        )
+                        self.db_session.add(detection)
+                        self.db_session.commit()
 
-                #     # Commit every 10 detections
-                #     if len(self.db_session.new) % 10 == 0:
-                #         self.db_session.commit()
+                        # # Commit every 10 detections
+                        # if len(self.db_session.new) % 10 == 0:
+                        #     self.db_session.commit()
         else:
             # print("no results")
             pass

@@ -13,12 +13,12 @@ def get_current_time_in_timezone():
 
 class Detection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    camera_name = db.Column(db.String(50), nullable=False)
-    det_face = db.Column(db.Text, nullable=False)
-    det_score = db.Column(db.Float, nullable=False)
     person = db.Column(db.String(100), nullable=False)
-    similarity = db.Column(db.Float, nullable=False)
+    camera_name = db.Column(db.String(50), nullable=False)
+    det_score = db.Column(db.Float, nullable=False)    
+    distance = db.Column(db.Float, nullable=False)
     timestamp = db.Column(db.DateTime(timezone=True), default=get_current_time_in_timezone)
+    det_face = db.Column(db.Text, nullable=False)
 
     def __repr__(self):
         return f"<Detection {self.camera_name}, {self.detected_face}>"

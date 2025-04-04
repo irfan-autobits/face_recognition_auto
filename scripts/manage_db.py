@@ -3,6 +3,7 @@ from app.models.model import db, Detection, Camera_list, Face_recog_User
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.orm import sessionmaker
+from config.Paths import IS_RM_REPORT
 
 def manage_table(purge=False, drop=False, spec=False):
     try:
@@ -16,7 +17,8 @@ def manage_table(purge=False, drop=False, spec=False):
             Camera_list.__table__.drop(db.engine)
             # db.session.commit()
             Face_recog_User.__table__.drop(db.engine)
-            # Detection.__table__.drop(db.engine)
+            if IS_RM_REPORT:
+                Detection.__table__.drop(db.engine)
             db.session.commit()
             db.create_all()
             print("Dropped Camera_list and Face_recog_User but not Detection and Embedding.")

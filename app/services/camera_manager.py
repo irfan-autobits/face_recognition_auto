@@ -1,7 +1,7 @@
-# final-compre/app/services/camera_manager.py
+# app/services/camera_manager.py
 from datetime import datetime 
 import json
-from app.models.model import Detection, Camera_list, db
+from app.models.model import Detection, Camera_list, Raw_Embedding, db
 from flask import current_app
 from app.processors.VideoCapture import VideoStream  
 from config.Paths import frame_lock, vs_list, cam_sources
@@ -96,25 +96,34 @@ def Stop_camera(camera_name):
             return {'error' : f'Recognition for {camera_name} Camera Already stopped'}, 404
     else:
         return {'error' : f'{camera_name} Camera not found'}, 404   
-    
+        
 def List_cameras():
-    """API endpoint to list all cameras"""
+    """API endpoint to list all the cameras with their status"""
     try:
         with current_app.app_context():
             cameras = Camera_list.query.all()
-            camera_list = [{'camera_name': cam.camera_name, 'camera_url': cam.camera_url} for cam in cameras]
+            camera_list = []
+            for cam in cameras:
+                # Check if camera is active in vs_list
+                status = cam.camera_name in vs_list
+                camera_list.append({
+                    'camera_name': cam.camera_name,
+                    'camera_url': cam.camera_url,
+                    'status': status  # True if active, False otherwise
+                })
             return {'cameras': camera_list}, 200
     except Exception as e:
         db.session.rollback()
         cam_stat_logger.error(f"Failed to list cameras: {str(e)}")
-        return {'error' : str(e)}, 500   
+        return {'error': str(e)}, 500
+ 
      
 def Recognition_table():
     """API endpoint to list all Recognition"""
     try:
         with current_app.app_context():
             detection = Detection.query.all()
-            detection_list = [{'camera_name': det.camera_name, 'det_face': det.det_face, 'person': det.person, 'similarity': det.similarity, 'timestamp': det.timestamp} for det in detection]
+            detection_list = [{"id":det.id, "person":det.person, "camera_name":det.camera_name, "det_score":det.det_score, "distance":det.distance, "timestamp":det.timestamp, "det_face":det.det_face} for det in detection]
             return {'detections': detection_list}, 200
     except Exception as e:
         db.session.rollback()

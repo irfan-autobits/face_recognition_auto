@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import threading
 from dotenv import load_dotenv
 from threading import Lock
 
@@ -40,8 +41,12 @@ FACE_DET_LM = os.getenv("FACE_DET_LM", 0)
 database_dir = DATABASE_DIR
 face_dir = FACE_DIR
 
+IS_RM_REPORT = os.getenv('IS_RM_REPORT', True)
+IS_GEN_REPORT = os.getenv('IS_GEN_REPORT', True)
+IS_RECOGNIZE = os.getenv('IS_RECOGNIZE', True)
 # Remove the database directory and its contents
-shutil.rmtree(database_dir, ignore_errors=True)
+if IS_RM_REPORT:
+    shutil.rmtree(database_dir, ignore_errors=True)
 
 # Create the database directory
 database_dir.mkdir(parents=True, exist_ok=True)
@@ -52,3 +57,5 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default_fallback_key')
 # Define a global lock
 frame_lock = Lock()
 vs_list = dict()
+active_camera_lock = threading.Lock()
+active_camera = None

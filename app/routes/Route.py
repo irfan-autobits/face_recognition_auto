@@ -1,10 +1,15 @@
-# final-compre/app/routes/Route.py
+# app/routes/Route.py
 from flask import Blueprint, jsonify, render_template, request
 from flask import current_app 
 from app.services.user_management import sign_up_user, log_in_user
 from app.services.camera_manager import Add_camera, Remove_camera, Start_camera, Stop_camera, List_cameras, Recognition_table
+from app.services.person_journey import List_knownperson, get_movement_history, update_movement_history
 from flask_socketio import SocketIO
-
+from flask import send_from_directory, abort
+import os
+from config.Paths import FACE_DIR, active_camera, active_camera_lock
+import config.Paths as paths  # Ensure you're updating the module variable
+from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 
 # Blueprint for routes
 bp = Blueprint('video_feed', __name__)
@@ -65,8 +70,8 @@ def remove_camera():
     else:
         return {'error' : 'Camera name or url not provided'}, 400
 
-@bp.route('/api/start_feed', methods=['POST'])
-def start_feed():
+@bp.route('/api/start_proc', methods=['POST'])
+def start_proc():
     """Start the video feed"""
     data = request.get_json()
     camera_name = data.get('camera_name')
@@ -74,10 +79,10 @@ def start_feed():
         responce, status = Start_camera(camera_name)
         return responce, status
     else:
-        return {'error' : 'Camera name not provided for starting'}, 400
+        return {'error' : 'Camera name not provided for starting processing'}, 400
 
-@bp.route('/api/stop_feed', methods=['POST'])
-def stop_feed():
+@bp.route('/api/stop_proc', methods=['POST'])
+def stop_proc():
     """Stop the video feed"""
     data = request.get_json()
     camera_name = data.get('camera_name')
@@ -85,8 +90,26 @@ def stop_feed():
         responce, status = Stop_camera(camera_name)
         return responce, status
     else:
-        return {'error' : 'Camera name not provided for stopping'}, 400
-    
+        return {'error' : 'Camera name not provided for stopping processing'}, 400
+
+@bp.route('/api/start_feed', methods=['POST'])
+def start_feed():
+    data = request.get_json()
+    camera_name = data.get('camera_name')    
+    with paths.active_camera_lock:
+        paths.active_camera = camera_name
+        print(f"activa camera is : {paths.active_camera}")
+        cam_stat_logger.debug(f"activa camera is : {paths.active_camera}")
+    return {'message': f'Now emitting frames for {camera_name}'}, 200
+
+@bp.route('/api/stop_feed', methods=['POST'])
+def stop_feed():
+    with paths.active_camera_lock:
+        paths.active_camera = None
+        print(f"activa camera is : {paths.active_camera}")
+        cam_stat_logger.debug(f"activa camera is : {paths.active_camera}")
+    return {'message': f'Now emitting frames for None'}, 200
+
 @bp.route('/api/camera_list', methods=['GET'])
 def List_cam():
     """List all the camera"""
@@ -97,4 +120,23 @@ def List_cam():
 def List_det():
     """List all the Recognitions"""
     responce, status = Recognition_table()
+    return responce, status
+
+@bp.route('/faces/<path:subpath>')
+def serve_face(subpath):
+    """Serve face imgs"""
+    file_path = os.path.join(FACE_DIR, subpath)
+    if os.path.isfile(file_path):
+        return send_from_directory(FACE_DIR, subpath)
+    else:
+        abort(404)
+
+@bp.route('/api/movement/<person_name>', methods=['GET'])
+def movement_history(person_name):
+    history = update_movement_history(person_name)
+    return jsonify(history)
+
+@bp.route('/api/known_people', methods=['GET'])
+def get_known_people():
+    responce, status = List_knownperson()
     return responce, status

@@ -16,7 +16,7 @@ def format_subject(subject):
     # If there's only one part, return it unchanged (or handle as needed)
     return subject
     
-def Drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, similarity, draw_lan=False):
+def Drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, distance, draw_lan=False):
     """
     Function to process the frame before sending it to the client.
     You can add your own frame processing logic here (e.g., recognition, drawing).
@@ -40,7 +40,7 @@ def Drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, prob
         #                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
         # cv2.putText(frame, str(int(probability * 100)), (box['x_min']+5, box['y_min'] - 15),
         #                 cv2.FONT_HERSHEY_SIMPLEX, 0.3, color, 1)
-        frmt_sim = f"{similarity:.3f}"
+        frmt_sim = f"{distance:.3f}"
         subject = format_subject(subject)
         sub_sim = f"{frmt_sim}_{subject}"  
         cv2.putText(frame, sub_sim, (box['x_min']+5, box['y_min'] - 15),
