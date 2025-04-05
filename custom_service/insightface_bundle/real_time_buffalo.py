@@ -1,8 +1,9 @@
+# custom_service/insightface_bundle/real_time_buffalo.py
 import time
 from insightface.app import FaceAnalysis
 import numpy as np
 from custom_service.insightface_bundle.verify_euclidean_dis import verify_identity
-from app.models.model import Raw_Embedding, db
+from app.models.model import Embedding, db
 from flask import current_app      
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 
@@ -16,16 +17,18 @@ print(f"using model pack {model_pack_name}")
 analy_app = FaceAnalysis(name=model_pack_name ,allowed_modules=['detection', 'landmark_3d_68'])
 analy_app.prepare(ctx_id=0, det_size=(640, 640))
 
-
 def verification(input_embedding):
     # Example usage with known embeddings from the database
     with current_app.app_context():
-        embeddings = Raw_Embedding.query.all()
+        embeddings = Embedding.query.all()
         
-        # List of known embeddings from the database (you need to format this appropriately)
-        known_embeddings = [{'subject_name': emb.subject_name, 'embedding': np.array(emb.embedding)} for emb in embeddings]
+        # Now access the subject name through the relationship: emb.subject.subject_name
+        known_embeddings = [{
+            'subject_name': emb.subject.subject_name,
+            'embedding': np.array(emb.embedding)
+        } for emb in embeddings]
                 
-        # Get the top 3 closest matches
+        # Get the top 1 closest match
         matches = verify_identity(input_embedding, known_embeddings, top_n=1)
         return matches
 

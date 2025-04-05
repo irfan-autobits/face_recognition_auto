@@ -32,8 +32,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql+psycopg2://postgres:postgres
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-class Raw_Embedding(db.Model):
-    __tablename__ = 'raw_embedding'
+class Embedding(db.Model):
+    __tablename__ = 'embedding'
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     subject_name = db.Column(db.String(100), nullable=False)
     embedding = db.Column(ARRAY(db.Float), nullable=False)
@@ -46,7 +46,7 @@ class Raw_Embedding(db.Model):
 with app.app_context():
     db.drop_all()
     db.create_all()
-    print("Table created: raw_embedding")
+    print("Table created: embedding")
 
 # ----------------- Initialize InsightFace -----------------
 # Initialize the InsightFace app with detection and recognition modules.
@@ -58,10 +58,10 @@ analy_app.prepare(ctx_id=0, det_size=(640, 640))
 
 # ----------------- Helper Functions -----------------
 def store_embedding(subject_name, embedding_vector):
-    """Store the face embedding in the Raw_Embedding table."""
+    """Store the face embedding in the Embedding table."""
     # add default camera
     with app.app_context():
-        embedding_entry = Raw_Embedding(
+        embedding_entry = Embedding(
             subject_name=subject_name,
             embedding=embedding_vector,
             calculator="insightface_R_100"
@@ -177,9 +177,9 @@ def verify_identity(input_embedding, known_embeddings, top_n=1, threshold=0.6):
     return matches
 
 def verification(input_embedding):
-    # Example usage with known embeddings from the database (Raw_Embedding.query.all())
+    # Example usage with known embeddings from the database (Embedding.query.all())
     with app.app_context():
-        embeddings = Raw_Embedding.query.all()
+        embeddings = Embedding.query.all()
         
         # List of known embeddings from the database (you need to format this appropriately)
         known_embeddings = [{'subject_name': emb.subject_name, 'embedding': np.array(emb.embedding)} for emb in embeddings]

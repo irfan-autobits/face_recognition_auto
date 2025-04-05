@@ -4,7 +4,7 @@ import time
 from .model_zoo import get_model
 import numpy as np
 from custom_service.insightface_bundle.verify_euclidean_dis import verify_identity
-from app.models.model import Raw_Embedding, db
+from app.models.model import Embedding, db
 from flask import current_app      
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 
@@ -31,7 +31,7 @@ analy_app.prepare(ctx_id=0, det_size=(640, 640))
 # def verification(input_embedding):
 #     # Example usage with known embeddings from the database
 #     with current_app.app_context():
-#         embeddings = Raw_Embedding.query.all()
+#         embeddings = Embedding.query.all()
         
 #         # List of known embeddings from the database (you need to format this appropriately)
 #         known_embeddings = [{'subject_name': emb.subject_name, 'embedding': np.array(emb.embedding)} for emb in embeddings]

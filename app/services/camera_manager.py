@@ -1,7 +1,7 @@
 # app/services/camera_manager.py
 from datetime import datetime 
 import json
-from app.models.model import Detection, Camera_list, Raw_Embedding, db
+from app.models.model import Detection, Camera_list, Embedding, db
 from flask import current_app
 from app.processors.VideoCapture import VideoStream  
 from config.Paths import frame_lock, vs_list, cam_sources

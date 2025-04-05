@@ -1,3 +1,4 @@
+# custom_service/insightface_bundle/verify_euclidean_dis.py
 import numpy as np
 from scipy.spatial.distance import euclidean
 

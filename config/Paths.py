@@ -21,10 +21,12 @@ model_pack_name = os.getenv("model_pack_name", "buffalo_l")
 # Define other paths relative to the base directory
 DATABASE_DIR = BASE_DIR / "Reports"
 FACE_DIR = DATABASE_DIR / "saved_face"
+SUBJECT_IMG_DIR = DATABASE_DIR / "subjects_imgs"
 MODELS_DIR = BASE_DIR / ".models"
 DET_LOG_FILE_PATH = DATABASE_DIR / "detection_logs.txt"
 CAM_STAT_LOG_FILE_PATH = DATABASE_DIR / "cam_stat_logs.txt"
 EXEC_TIME_LOG_FILE_PATH = DATABASE_DIR / "exec_time_logs.txt"
+FACE_PROC_LOG_FILE_PATH = DATABASE_DIR / "face_proc_logs.txt"
 
 # Retrieve CAMERA_SOURCES and parse it as JSON
 CAMERA_SOURCES = os.getenv("CAMERA_SOURCES", "{}")
@@ -40,6 +42,7 @@ FACE_DET_LM = os.getenv("FACE_DET_LM", 0)
 # Simulating variables
 database_dir = DATABASE_DIR
 face_dir = FACE_DIR
+sub_img_dir = SUBJECT_IMG_DIR
 
 IS_RM_REPORT = os.getenv('IS_RM_REPORT', True)
 IS_GEN_REPORT = os.getenv('IS_GEN_REPORT', True)
@@ -51,6 +54,7 @@ if IS_RM_REPORT:
 # Create the database directory
 database_dir.mkdir(parents=True, exist_ok=True)
 face_dir.mkdir(parents=True, exist_ok=True)
+sub_img_dir.mkdir(parents=True, exist_ok=True)
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'default_fallback_key')
 

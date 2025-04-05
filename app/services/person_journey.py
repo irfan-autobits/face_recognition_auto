@@ -1,5 +1,5 @@
 # app/services/person_journey.py
-from app.models.model import Detection, Camera_list, Raw_Embedding, db
+from app.models.model import Detection, Camera_list, Embedding, Subject, db
 from flask import current_app
 from config.logger_config import cam_stat_logger 
 from datetime import datetime
@@ -126,20 +126,20 @@ def update_movement_history(person_name):
     print(f"returning journy is : {cached_journey}")
     return cached_journey
 
-def List_knownperson():
-    """API endpoint to list all known person"""
-    try:
-        with current_app.app_context():
-            subjects = Raw_Embedding.query.all()
-            person_list = []
-            for sub in subjects:
-                person_list.append({
-                    'subject_name': sub.subject_name,
-                })
-            # print(f"returnning known people : {person_list}")
-            return {'subjects': person_list}, 200
-    except Exception as e:
-        db.session.rollback()
-        cam_stat_logger.error(f"Failed to list subjects: {str(e)}")
-        return {'error': str(e)}, 500
+# def List_knownperson():
+#     """API endpoint to list all known person"""
+#     try:
+#         with current_app.app_context():
+#             subjects = Subject.query.all()
+#             person_list = []
+#             for sub in subjects:
+#                 person_list.append({
+#                     'subject_name': sub.subject_name,
+#                 })
+#             # print(f"returnning known people : {person_list}")
+#             return {'subjects': person_list}, 200
+#     except Exception as e:
+#         db.session.rollback()
+#         cam_stat_logger.error(f"Failed to list subjects: {str(e)}")
+#         return {'error': str(e)}, 500
 

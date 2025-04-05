@@ -21,7 +21,7 @@ class Detection(db.Model):
     det_face = db.Column(db.Text, nullable=False)
 
     def __repr__(self):
-        return f"<Detection {self.camera_name}, {self.detected_face}>"
+        return f"<Detection {self.camera_name}, {self.det_face}>"
     
 class Camera_list(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -39,40 +39,34 @@ class Face_recog_User(db.Model):
     def __repr__(self):
         return f"<User {self.email}>"
 
-class Raw_Embedding(db.Model):
-    __tablename__ = 'raw_embedding'
+class Subject(db.Model):
+    __tablename__ = 'subject'
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     subject_name = db.Column(db.String(100), nullable=False)
-    embedding = db.Column(ARRAY(db.Float), nullable=False)
-    calculator = db.Column(db.String(255), nullable=False)
+    added_date = db.Column(db.DateTime(timezone=True), nullable=False, default=get_current_time_in_timezone)
+    # Relationships to images and embeddings
+    images = db.relationship('Img', backref='subject', lazy=True, cascade="all, delete-orphan")
+    embeddings = db.relationship('Embedding', backref='subject', lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Embedding {self.id}, Subject: {self.subject_name}>"
-    
-# from sqlalchemy.dialects.postgresql import UUID, ARRAY
-# import uuid
+        return f"<Subject {self.id}, Name: {self.subject_name}>"
 
-# class Subject(db.Model):
-#     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
-#     subject_name = db.Column(db.String(100), nullable=False)
-#     api_key = db.Column(db.String(255), unique=True, nullable=False)
+class Img(db.Model):
+    __tablename__ = 'img'
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
+    # Store a serving URL or file path
+    image_url = db.Column(db.String(255), nullable=False)
+    subject_id = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'), nullable=False)
 
-# class Img(db.Model):
-#     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
-#     image_data = db.Column(db.LargeBinary, nullable=True)  # Adjust as per your requirement
+    def __repr__(self):
+        return f"<Image {self.id}, URL: {self.image_url}>"
 
-# class Raw_Embedding(db.Model):
-#     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
+class Embedding(db.Model):
+    __tablename__ = 'embedding'
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
+    embedding = db.Column(ARRAY(db.Float), nullable=False)
+    calculator = db.Column(db.String(255), nullable=False)
+    subject_id = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'), nullable=False)
 
-#     subject_name = db.Column(db.String(100), nullable=False)
-    
-#     embedding = db.Column(ARRAY(db.Float), nullable=False)
-#     calculator = db.Column(db.String(255), nullable=False)
-
-#     subject_id = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'), nullable=False)
-#     subject = db.relationship('Subject', backref=db.backref('embeddings', lazy=True))    
-#     img_id = db.Column(UUID(as_uuid=True), db.ForeignKey('img.id'), nullable=True)
-#     img = db.relationship('Img', backref=db.backref('embeddings', lazy=True))
-
-#     def __repr__(self):
-#         return f"<Embedding {self.id}, Subject: {self.subject_name}>"
+    def __repr__(self):
+        return f"<Embedding {self.id}, Subject ID: {self.subject_id}>"

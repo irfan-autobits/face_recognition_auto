@@ -1,12 +1,13 @@
 # final-compre/config/logger_config.py
 import logging
 from logging.handlers import RotatingFileHandler
-from config.Paths import DET_LOG_FILE_PATH, CAM_STAT_LOG_FILE_PATH, EXEC_TIME_LOG_FILE_PATH
+from config.Paths import DET_LOG_FILE_PATH, CAM_STAT_LOG_FILE_PATH, EXEC_TIME_LOG_FILE_PATH, FACE_PROC_LOG_FILE_PATH
 
 # File paths for different log files
 det_log_path = DET_LOG_FILE_PATH
 cam_stat_log_path = CAM_STAT_LOG_FILE_PATH
 exec_time_log_path = EXEC_TIME_LOG_FILE_PATH
+face_proc_log_path = FACE_PROC_LOG_FILE_PATH
 log_file_size = 100 * 1024 # 1kb = 12.1 lines
 
 # Function to configure a logger for detection logs
@@ -75,12 +76,30 @@ def create_console_logger():
 
     return console_logger
 
+# Function to configure a logger for other logs
+def create_face_proc_logger():
+    face_proc_logger = logging.getLogger('face_proc_logger')
+    face_proc_logger.setLevel(logging.DEBUG)
+    
+    face_proc_file_handler = RotatingFileHandler(str(face_proc_log_path), maxBytes=log_file_size, backupCount=1)
+    # face_proc_file_handler = logging.FileHandler(str(face_proc_log_path))
+    face_proc_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+
+    face_proc_logger.addHandler(face_proc_file_handler)
+
+    # Optionally, add console logging for other logs
+    face_proc_console_handler = logging.StreamHandler()
+    face_proc_console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    # face_proc_logger.addHandler(face_proc_console_handler)
+
+    return face_proc_logger
 
 # Create and configure loggers
 det_logger = create_detection_logger()
 cam_stat_logger = create_cam_stat_logger()
 console_logger = create_console_logger()
 exec_time_logger = create_exec_time_logger()
+face_proc_logger = create_face_proc_logger()
 
 # Example log messages
 # logging.debug('This is a debug message.')
