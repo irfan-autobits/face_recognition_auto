@@ -6,7 +6,21 @@ import shutil
 import threading
 from dotenv import load_dotenv
 from threading import Lock
+import os
 
+# TEMP UNSET (only for this Python process and child processes)
+# 👇 Step 1: Wipe all possible custom env vars
+CLEAN_VARS = [
+    'IS_RECOGNIZE', 'IS_RM_REPORT', 'IS_GEN_REPORT',
+    'model_pack_name', 'CAMERA_SOURCES', 'HOST', 'PORT', 'API_KEY',
+    'FACE_DET_LM', 'FACE_DET_TH', 'FACE_REC_TH', 'SECRET_KEY'
+]
+
+for var in CLEAN_VARS:
+    if var in os.environ:
+        print(f"🧹 Unsetting {var}")
+        del os.environ[var]
+        
 # Load environment variables from the .env file
 load_dotenv(override=True)
 
@@ -19,14 +33,35 @@ INSIGHT_MODELS = INSIGHTFACE_ROOT / "models"
 model_pack_name = os.getenv("model_pack_name", "buffalo_l")
 
 # Define other paths relative to the base directory
-DATABASE_DIR = BASE_DIR / "Reports"
-FACE_DIR = DATABASE_DIR / "saved_face"
-SUBJECT_IMG_DIR = DATABASE_DIR / "subjects_imgs"
+DATABASE_DIR = BASE_DIR / "AppData"
 MODELS_DIR = BASE_DIR / ".models"
-DET_LOG_FILE_PATH = DATABASE_DIR / "detection_logs.txt"
-CAM_STAT_LOG_FILE_PATH = DATABASE_DIR / "cam_stat_logs.txt"
-EXEC_TIME_LOG_FILE_PATH = DATABASE_DIR / "exec_time_logs.txt"
-FACE_PROC_LOG_FILE_PATH = DATABASE_DIR / "face_proc_logs.txt"
+
+SUBJECT_IMG_DIR = DATABASE_DIR / "subjects_imgs"
+REPORTS_DIR = DATABASE_DIR / "Reports"
+
+FACE_DIR = REPORTS_DIR / "saved_face"
+DET_LOG_FILE_PATH = REPORTS_DIR / "detection_logs.txt"
+CAM_STAT_LOG_FILE_PATH = REPORTS_DIR / "cam_stat_logs.txt"
+EXEC_TIME_LOG_FILE_PATH = REPORTS_DIR / "exec_time_logs.txt"
+FACE_PROC_LOG_FILE_PATH = REPORTS_DIR / "face_proc_logs.txt"
+
+# Simulating variables
+database_dir = DATABASE_DIR
+reports_dir = REPORTS_DIR
+sub_img_dir = SUBJECT_IMG_DIR
+face_dir = FACE_DIR
+
+IS_RM_REPORT = os.getenv('IS_RM_REPORT', "true").lower()
+IS_GEN_REPORT = os.getenv('IS_GEN_REPORT', "true").lower()
+IS_RECOGNIZE = os.getenv('IS_RECOGNIZE', "true").lower()
+# Remove the database directory and its contents
+if IS_RM_REPORT.lower() == "true":
+    shutil.rmtree(reports_dir, ignore_errors=True)
+# Create the database directory
+database_dir.mkdir(parents=True, exist_ok=True)
+reports_dir.mkdir(parents=True, exist_ok=True)
+sub_img_dir.mkdir(parents=True, exist_ok=True)
+face_dir.mkdir(parents=True, exist_ok=True)
 
 # Retrieve CAMERA_SOURCES and parse it as JSON
 CAMERA_SOURCES = os.getenv("CAMERA_SOURCES", "{}")
@@ -39,22 +74,6 @@ FACE_DET_TH = os.getenv("FACE_DET_TH", 0.8)
 FACE_REC_TH = os.getenv("FACE_REC_TH", 0.8)
 FACE_DET_LM = os.getenv("FACE_DET_LM", 0)
 
-# Simulating variables
-database_dir = DATABASE_DIR
-face_dir = FACE_DIR
-sub_img_dir = SUBJECT_IMG_DIR
-
-IS_RM_REPORT = os.getenv('IS_RM_REPORT', True)
-IS_GEN_REPORT = os.getenv('IS_GEN_REPORT', True)
-IS_RECOGNIZE = os.getenv('IS_RECOGNIZE', True)
-# Remove the database directory and its contents
-if IS_RM_REPORT:
-    shutil.rmtree(database_dir, ignore_errors=True)
-
-# Create the database directory
-database_dir.mkdir(parents=True, exist_ok=True)
-face_dir.mkdir(parents=True, exist_ok=True)
-sub_img_dir.mkdir(parents=True, exist_ok=True)
 
 SECRET_KEY = os.getenv('SECRET_KEY', 'default_fallback_key')
 

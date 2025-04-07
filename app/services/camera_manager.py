@@ -118,12 +118,19 @@ def List_cameras():
         return {'error': str(e)}, 500
  
      
-def Recognition_table():
+def Recognition_table(page,limit):
     """API endpoint to list all Recognition"""
     try:
         with current_app.app_context():
-            detection = Detection.query.all()
-            detection_list = [{"id":det.id, "person":det.person, "camera_name":det.camera_name, "det_score":det.det_score, "distance":det.distance, "timestamp":det.timestamp, "det_face":det.det_face} for det in detection]
+            # Get pagination parameters from query string
+            offset = (page - 1) * limit
+            # Query detections in descending order (adjust order as needed)
+            detection = (Detection.query
+                      .order_by(Detection.timestamp.desc())
+                      .limit(limit)
+                      .offset(offset)
+                      .all())
+            detection_list = [{"id":det.id, "person":det.person, "camera_name":det.camera_name, "det_score":det.det_score, "distance":det.distance, "timestamp":det.timestamp.isoformat(), "det_face":det.det_face} for det in detection]
             return {'detections': detection_list}, 200
     except Exception as e:
         db.session.rollback()

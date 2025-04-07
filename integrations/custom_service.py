@@ -6,7 +6,7 @@ from config.Paths import IS_RECOGNIZE
 
 def cutm_integ(frame):
 
-    if IS_RECOGNIZE:
+    if IS_RECOGNIZE.lower() == "true":
         # results = yunet_detect(frame)
         # results = RetinaFace_detect(frame)
         # results = find_faces_post(frame)

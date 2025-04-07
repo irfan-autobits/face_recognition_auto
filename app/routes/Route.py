@@ -3,8 +3,8 @@ from flask import Blueprint, jsonify, render_template, request
 from flask import current_app 
 from app.services.user_management import sign_up_user, log_in_user
 from app.services.camera_manager import Add_camera, Remove_camera, Start_camera, Stop_camera, List_cameras, Recognition_table
-from app.services.person_journey import get_movement_history, update_movement_history
-from app.services.subject_manager import add_subject, list_subject
+from app.services.person_journey import get_movement_history
+from app.services.subject_manager import add_subject, list_subject, delete_subject
 from flask_socketio import SocketIO
 from flask import send_from_directory, abort
 import os
@@ -122,7 +122,9 @@ def List_cam():
 @bp.route('/api/reco_table', methods=['GET'])
 def List_det():
     """List all the Recognitions"""
-    responce, status = Recognition_table()
+    page = request.args.get('page', 1, type=int)
+    limit = request.args.get('limit', 100, type=int)
+    responce, status = Recognition_table(page,limit)
     return responce, status
 
 @bp.route('/faces/<path:subpath>')
@@ -145,7 +147,7 @@ def serve_sub(subpath):
 
 @bp.route('/api/movement/<person_name>', methods=['GET'])
 def movement_history(person_name):
-    history = update_movement_history(person_name)
+    history = get_movement_history(person_name)
     return jsonify(history)
 
 @bp.route('/api/subject_list', methods=['GET'])
@@ -156,24 +158,35 @@ def subject_list():
 
 @bp.route('/api/add_sub', methods=['POST'])
 def add_sub():
-    """API endpoint to add a subject with images"""
-    # Get file and optional subject name from the request
+    """API endpoint to add multiple subjects, one per image."""
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
-    file = request.files['file']
-    subject_name = request.form.get('subject_name')
 
-    # Secure filename
-    filename = secure_filename(file.filename)
-    if not subject_name or subject_name.strip() == "":
+    files = request.files.getlist('file')
+    # Optionally, if you want a default subject name, you can get one field,
+    # but typically each file will get its own subject name based on its filename.
+    added_subjects = []
+    
+    for file in files:
+        filename = secure_filename(file.filename)
         # Derive subject name from file name (without extension)
         subject_name = os.path.splitext(filename)[0].replace('_', ' ').title()
+        
+        # Save file locally
+        img_path = SUBJECT_IMG_DIR / filename
+        img_path = str(img_path)
+        os.makedirs(os.path.dirname(img_path), exist_ok=True)
+        file.save(img_path)
 
-    # Save file locally
-    # save_path = os.path.join(SUBJECT_IMG_DIR, filename)
-    img_path = SUBJECT_IMG_DIR / filename
-    img_path = str(img_path)
-    file.save(img_path)
+        # Call service function to add subject for this file/image
+        response, status = add_subject(subject_name, img_path)
+        if status == 200:
+            added_subjects.append(response.get('message', subject_name))
+    
+    return jsonify({'message': 'Subjects added', 'subjects': added_subjects}), 200
 
-    response, status = add_subject(filename, subject_name, img_path)
-    return response, status
+
+@bp.route('/api/remove_sub/<subject_id>', methods=['DELETE'])
+def remove_sub(subject_id):
+    response, status = delete_subject(subject_id)
+    return response, status    

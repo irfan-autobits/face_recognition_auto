@@ -76,7 +76,7 @@ class FaceDetectionProcessor:
 
                 # visulize(embedding)
                 frame = Drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, distance, draw_lan=False)  
-                if IS_GEN_REPORT:
+                if IS_GEN_REPORT.lower() == "true":
                     face_path = save_image(frame, cam_name, box, subject, distance, is_unknown)
                     face_url = f"http://localhost:5757/faces/{face_path}"
                     # Use the app context explicitly

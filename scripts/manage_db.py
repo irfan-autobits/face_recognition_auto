@@ -17,7 +17,7 @@ def manage_table(purge=False, drop=False, spec=False):
             Camera_list.__table__.drop(db.engine)
             # db.session.commit()
             Face_recog_User.__table__.drop(db.engine)
-            if IS_RM_REPORT:
+            if IS_RM_REPORT.lower() == "true":
                 Detection.__table__.drop(db.engine)
             db.session.commit()
             db.create_all()

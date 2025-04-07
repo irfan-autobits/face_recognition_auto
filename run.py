@@ -36,16 +36,14 @@ app = create_app()
 CORS(app, resources={r"/*": {"origins": "*"}})  # Adjust the wildcard "*" to specific origins for better security.
 
 # Initialize Flask-SocketIO
-# socketio = SocketIO(app, cors_allowed_origins="http://localhost:3000")
-socketio = SocketIO(app, cors_allowed_origins="*")
-# socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins="*", ping_interval=10, ping_timeout=30)
 
 # Initialize the database
 db.init_app(app)
 
 # add default camera
 with app.app_context():
-    manage_table(drop = True) # drop all tables
+    manage_table(spec = True) # drop all tables
     db_url = app.config['SQLALCHEMY_DATABASE_URI']
     print(f"dburl: {db_url}")
     # import_tab(db_url)

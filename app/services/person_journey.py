@@ -1,8 +1,8 @@
-# app/services/person_journey.py
 from app.models.model import Detection, Camera_list, Embedding, Subject, db
 from flask import current_app
-from config.logger_config import cam_stat_logger 
+from config.logger_config import cam_stat_logger, face_proc_logger
 from datetime import datetime
+import pytz
 
 def format_duration(seconds):
     seconds = int(seconds)
@@ -18,128 +18,85 @@ def format_duration(seconds):
         parts.append(f"{secs}s")
     return " ".join(parts)
 
-
-movement_cache = {}
-
 def get_person_journey(detections):
     """
     Process ordered detections for a person and merge consecutive detections 
     from the same camera into segments.
     Each segment contains:
       - 'camera_name': name of the camera
-      - 'entry_time': the time of the first detection (formatted as a string)
+      - 'entry_time': the time of the first detection (formatted without microseconds)
+      - 'start_time_raw': the raw datetime of the first detection (with microseconds zeroed)
       - 'duration': time difference in seconds between the first and last detection in that segment
     """
     if not detections:
         return []
 
     journey = []
-    # Start the first segment with the first detection
+    # Remove microseconds for consistency while retaining timezone awareness
+    first_time = detections[0].timestamp.replace(microsecond=0)
     current_segment = {
         'camera_name': detections[0].camera_name,
-        'entry_time': detections[0].timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-        'start_time': detections[0].timestamp,  # Keep as datetime for calculation
-        'end_time': detections[0].timestamp
+        'entry_time': first_time.strftime('%Y-%m-%d %H:%M:%S'),
+        'start_time_raw': first_time,
+        'end_time': first_time
     }
     
+    face_proc_logger.debug(f"[START] New journey. First detection: {first_time.isoformat()}")
+
     for det in detections[1:]:
+        dt = det.timestamp.replace(microsecond=0)
+        face_proc_logger.debug(f"[DETECTION] {det.camera_name} @ {dt.isoformat()}")
+        
+        # Skip duplicate timestamp for the same segment
+        if det.camera_name == current_segment['camera_name'] and dt == current_segment['start_time_raw']:
+            face_proc_logger.debug(f"[SKIP] Duplicate timestamp for same camera segment. Skipping.")
+            continue
+        
         if det.camera_name == current_segment['camera_name']:
-            # Update end_time if still the same camera
-            current_segment['end_time'] = det.timestamp
+            current_segment['end_time'] = dt
+            face_proc_logger.debug(f"[UPDATE] Extended segment end_time to {dt.isoformat()}")
         else:
-            # Compute duration for the current segment
-            duration = (current_segment['end_time'] - current_segment['start_time']).total_seconds()
+            duration = (current_segment['end_time'] - current_segment['start_time_raw']).total_seconds()
+            duration = format_duration(duration)
+            face_proc_logger.debug(f"[SEGMENT DONE] {current_segment['camera_name']} from {current_segment['start_time_raw']} to {current_segment['end_time']} duration: {duration}s")
             journey.append({
                 'camera_name': current_segment['camera_name'],
                 'entry_time': current_segment['entry_time'],
-                'duration': duration
+                'duration': duration,
+                'start_time_raw': current_segment['start_time_raw'].isoformat()
             })
-            # Start a new segment for the new camera
+            # Start a new segment
             current_segment = {
                 'camera_name': det.camera_name,
-                'entry_time': det.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                'start_time': det.timestamp,
-                'end_time': det.timestamp
+                'entry_time': dt.strftime('%Y-%m-%d %H:%M:%S'),
+                'start_time_raw': dt,
+                'end_time': dt
             }
-    
-    # Append the last segment
-    duration = (current_segment['end_time'] - current_segment['start_time']).total_seconds()
+            face_proc_logger.debug(f"[NEW SEGMENT] New segment started at {dt.isoformat()} on camera {det.camera_name}")
+
+    # Append the final segment
+    duration = (current_segment['end_time'] - current_segment['start_time_raw']).total_seconds()
+    duration = format_duration(duration)
+    face_proc_logger.debug(f"[FINAL SEGMENT] {current_segment['camera_name']} from {current_segment['start_time_raw']} to {current_segment['end_time']} duration: {duration}s")
     journey.append({
         'camera_name': current_segment['camera_name'],
         'entry_time': current_segment['entry_time'],
-        'duration': format_duration(duration)
+        'duration': duration,
+        'start_time_raw': current_segment['start_time_raw'].isoformat()
     })
     
+    face_proc_logger.debug(f"[DONE] Final journey: {journey}")
     return journey
 
-
 def get_movement_history(person_name):
-    if person_name in movement_cache:
-        print(f"Cache hit for {person_name}")
-        return movement_cache[person_name]  # Return cached data
-
-    print(f"Cache miss for {person_name}, processing...")
-    detections = Detection.query.filter_by(person=person_name).order_by(Detection.timestamp).all()
-    path = get_person_journey(detections)
-
-    movement_cache[person_name] = path  # Store result in cache
-    return path
-
-def update_movement_history(person_name):
-    # If no cached data, process from scratch
-    if person_name not in movement_cache or not movement_cache[person_name]:
-        return get_movement_history(person_name)
-
-    # Convert the last cached entry_time to a datetime object
-    last_entry_str = movement_cache[person_name][-1]["entry_time"]
-    last_known_time = datetime.strptime(last_entry_str, '%Y-%m-%d %H:%M:%S')
-
-    # Query new detections after the last known time
-    new_detections = Detection.query.filter(
-        Detection.person == person_name,
-        Detection.timestamp > last_known_time
-    ).order_by(Detection.timestamp).all()
-
-    if not new_detections:
-        # No new detections; return cached data
-        return movement_cache[person_name]
-
-    # Process new detections to create a new journey segment list
-    new_journey = get_person_journey(new_detections)
-
-    # Merge new journey with cached data if the last camera is the same as the first new segment
-    cached_journey = movement_cache[person_name]
-    if new_journey:
-        if cached_journey[-1]["camera_name"] == new_journey[0]["camera_name"]:
-            # Update the duration of the last segment: from its start to the new segment's entry_time
-            last_segment_start = datetime.strptime(cached_journey[-1]["entry_time"], '%Y-%m-%d %H:%M:%S')
-            new_entry_time = datetime.strptime(new_journey[0]["entry_time"], '%Y-%m-%d %H:%M:%S')
-            cached_journey[-1]["duration"] = (new_entry_time - last_segment_start).total_seconds()
-            # Append the rest of the new journey (skip the first segment which is merged)
-            cached_journey.extend(new_journey[1:])
-        else:
-            # Cameras differ; just append new segments
-            cached_journey.extend(new_journey)
-    else:
-        # No new journey segments (shouldn't happen, but just in case)
-        pass
-    print(f"returning journy is : {cached_journey}")
-    return cached_journey
-
-# def List_knownperson():
-#     """API endpoint to list all known person"""
-#     try:
-#         with current_app.app_context():
-#             subjects = Subject.query.all()
-#             person_list = []
-#             for sub in subjects:
-#                 person_list.append({
-#                     'subject_name': sub.subject_name,
-#                 })
-#             # print(f"returnning known people : {person_list}")
-#             return {'subjects': person_list}, 200
-#     except Exception as e:
-#         db.session.rollback()
-#         cam_stat_logger.error(f"Failed to list subjects: {str(e)}")
-#         return {'error': str(e)}, 500
-
+    """
+    Recalculate the entire journey for the given person from scratch.
+    This function always queries the database and processes all detections,
+    ensuring the most updated data is returned.
+    """
+    with current_app.app_context():
+        detections = Detection.query.filter_by(person=person_name).order_by(Detection.timestamp).all()
+        face_proc_logger.debug(f"[HISTORY] Found {len(detections)} detections for {person_name}.")
+        journey = get_person_journey(detections)
+        face_proc_logger.debug(f"[HISTORY] Calculated journey: {journey}")
+        return journey
