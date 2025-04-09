@@ -88,14 +88,19 @@ def get_person_journey(detections):
     face_proc_logger.debug(f"[DONE] Final journey: {journey}")
     return journey
 
-def get_movement_history(person_name):
+def get_movement_history(person_name, start_time, end_time):
     """
     Recalculate the entire journey for the given person from scratch.
     This function always queries the database and processes all detections,
     ensuring the most updated data is returned.
     """
+    # Convert string to datetime if needed
+    start_dt = datetime.fromisoformat(start_time)
+    end_dt = datetime.fromisoformat(end_time)
+
+    # Query filtered by person and time
     with current_app.app_context():
-        detections = Detection.query.filter_by(person=person_name).order_by(Detection.timestamp).all()
+        detections = Detection.query.filter(Detection.person == person_name,Detection.timestamp >= start_dt,Detection.timestamp <= end_dt).order_by(Detection.timestamp.asc()).all()
         face_proc_logger.debug(f"[HISTORY] Found {len(detections)} detections for {person_name}.")
         journey = get_person_journey(detections)
         face_proc_logger.debug(f"[HISTORY] Calculated journey: {journey}")

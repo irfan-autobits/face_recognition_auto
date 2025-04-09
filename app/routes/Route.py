@@ -1,10 +1,11 @@
 # app/routes/Route.py
+import pandas as pd
 from flask import Blueprint, jsonify, render_template, request
 from flask import current_app 
 from app.services.user_management import sign_up_user, log_in_user
 from app.services.camera_manager import Add_camera, Remove_camera, Start_camera, Stop_camera, List_cameras, Recognition_table
 from app.services.person_journey import get_movement_history
-from app.services.subject_manager import add_subject, list_subject, delete_subject
+from app.services.subject_manager import add_subject, list_subject, delete_subject, add_image_to_subject, delete_subject_img
 from flask_socketio import SocketIO
 from flask import send_from_directory, abort
 import os
@@ -150,6 +151,16 @@ def movement_history(person_name):
     history = get_movement_history(person_name)
     return jsonify(history)
 
+@bp.route('/api/movement/<person_name>', methods=['POST'])
+def get_movement(person_name):
+    data = request.get_json()
+    start_time = data.get('start_time')
+    end_time = data.get('end_time')
+
+    history = get_movement_history(person_name, start_time, end_time)
+    return jsonify(history)
+
+
 @bp.route('/api/subject_list', methods=['GET'])
 def subject_list():
     print("on list sub")
@@ -158,35 +169,97 @@ def subject_list():
 
 @bp.route('/api/add_sub', methods=['POST'])
 def add_sub():
-    """API endpoint to add multiple subjects, one per image."""
+    """
+    API endpoint to add subjects with metadata from form or CSV.
+    for single mode it can take multiple img for single subject 
+    for csv mode it can take multiple subjects , but one img per subject extra img can be addded separately
+    """
+
+    # Bulk CSV mode
+    if 'csv' in request.files:
+        csv_file = request.files['csv']
+        df = pd.read_csv(csv_file)
+        uploaded_files = {f.filename: f for f in request.files.getlist('file')}
+
+        added_subjects = []
+
+        for _, row in df.iterrows():
+            subject_name = row.get('subject_name')
+            file_name = row.get('file_name')
+            age = row.get('Age')
+            gender = row.get('Gender')
+            email = row.get('Email')
+            phone = row.get('Phone')
+            aadhar = row.get('Aadhar')
+
+            file = uploaded_files.get(file_name)
+            if not file:
+                continue  # Skip if no matching image was uploaded
+
+            filename = secure_filename(file.filename)
+            img_path = str(SUBJECT_IMG_DIR / filename)
+            os.makedirs(os.path.dirname(img_path), exist_ok=True)
+            file.save(img_path)
+
+            response, status = add_subject(subject_name, img_path, age, gender, email, phone, aadhar)
+            if status == 200:
+                added_subjects.append(response.get('message', subject_name))
+
+        return jsonify({'message': 'Subjects added via CSV', 'subjects': added_subjects}), 200
+
+    # Single subject form mode
     if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
+        return jsonify({'error': 'No image file provided'}), 400
 
     files = request.files.getlist('file')
-    # Optionally, if you want a default subject name, you can get one field,
-    # but typically each file will get its own subject name based on its filename.
+    subject_name = request.form.get('subject_name')
+    age = request.form.get('Age')
+    gender = request.form.get('Gender')
+    email = request.form.get('Email')
+    phone = request.form.get('Phone')
+    aadhar = request.form.get('Aadhar')
+
+    if not subject_name:
+        return jsonify({'error': 'Subject name is required'}), 400
+
     added_subjects = []
-    
+
     for file in files:
         filename = secure_filename(file.filename)
-        # Derive subject name from file name (without extension)
-        subject_name = os.path.splitext(filename)[0].replace('_', ' ').title()
-        
-        # Save file locally
-        img_path = SUBJECT_IMG_DIR / filename
-        img_path = str(img_path)
+        img_path = str(SUBJECT_IMG_DIR / filename)
         os.makedirs(os.path.dirname(img_path), exist_ok=True)
         file.save(img_path)
 
-        # Call service function to add subject for this file/image
-        response, status = add_subject(subject_name, img_path)
+        response, status = add_subject(subject_name, img_path, age, gender, email, phone, aadhar)
         if status == 200:
             added_subjects.append(response.get('message', subject_name))
-    
-    return jsonify({'message': 'Subjects added', 'subjects': added_subjects}), 200
 
+    return jsonify({'message': 'Subjects added', 'subjects': added_subjects}), 200
 
 @bp.route('/api/remove_sub/<subject_id>', methods=['DELETE'])
 def remove_sub(subject_id):
     response, status = delete_subject(subject_id)
     return response, status    
+
+@bp.route('/api/add_subject_img/<subject_id>', methods=['POST'])
+def add_subject_img(subject_id):
+    """
+    API endpoint to add a new image to an existing subject.
+    Expects one file in request.files with key 'file'.
+    """
+    # Check if the file is provided in the request
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'error': 'No file selected'}), 400
+
+    # Call the service function to add the image
+    response, status = add_image_to_subject(subject_id, file)
+    return jsonify(response), status
+
+@bp.route('/api/remove_subject_img/<img_id>', methods=['DELETE'])
+def remove_subject_img(img_id):
+    response, status = delete_subject_img(img_id)
+    return response, status  

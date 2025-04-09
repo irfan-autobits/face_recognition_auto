@@ -44,7 +44,15 @@ class Subject(db.Model):
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     subject_name = db.Column(db.String(100), nullable=False)
     added_date = db.Column(db.DateTime(timezone=True), nullable=False, default=get_current_time_in_timezone)
-    # Relationships to images and embeddings
+
+    # 🆕 New identity fields
+    age = db.Column(db.Integer)
+    gender = db.Column(db.String(10))
+    email = db.Column(db.String(100))
+    phone = db.Column(db.String(15))
+    aadhar = db.Column(db.String(20))
+        
+    # A subject can have many images and embeddings.
     images = db.relationship('Img', backref='subject', lazy=True, cascade="all, delete-orphan")
     embeddings = db.relationship('Embedding', backref='subject', lazy=True, cascade="all, delete-orphan")
 
@@ -54,9 +62,10 @@ class Subject(db.Model):
 class Img(db.Model):
     __tablename__ = 'img'
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
-    # Store a serving URL or file path
-    image_url = db.Column(db.String(255), nullable=False)
+    image_url = db.Column(db.String(255), nullable=False)  # This could be a serving URL or file path.
     subject_id = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'), nullable=False)
+    # Cascade delete: if an image is removed, its embeddings are also removed.
+    embeddings = db.relationship('Embedding', backref='image', lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Image {self.id}, URL: {self.image_url}>"
@@ -67,6 +76,8 @@ class Embedding(db.Model):
     embedding = db.Column(ARRAY(db.Float), nullable=False)
     calculator = db.Column(db.String(255), nullable=False)
     subject_id = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'), nullable=False)
+    # This optional field links the embedding to the image it was generated from.
+    img_id = db.Column(UUID(as_uuid=True), db.ForeignKey('img.id'), nullable=True)
 
     def __repr__(self):
         return f"<Embedding {self.id}, Subject ID: {self.subject_id}>"

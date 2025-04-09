@@ -1,4 +1,6 @@
 Reports/
+AppData/
+subjects_imgs/
 embedding_req/
 /.models/
 /Vis_res/

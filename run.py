@@ -43,7 +43,7 @@ db.init_app(app)
 
 # add default camera
 with app.app_context():
-    manage_table(spec = True) # drop all tables
+    manage_table(drop = True) # drop all tables
     db_url = app.config['SQLALCHEMY_DATABASE_URI']
     print(f"dburl: {db_url}")
     # import_tab(db_url)
