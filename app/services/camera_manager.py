@@ -1,6 +1,7 @@
 # app/services/camera_manager.py
 from datetime import datetime 
 import json
+import time
 from app.models.model import Detection, Camera_list, Embedding, db
 from flask import current_app
 from app.processors.VideoCapture import VideoStream  
@@ -70,18 +71,38 @@ def Remove_camera(camera_name):
         return {'error' : str(e)}, 500
 
 def Start_camera(camera_name):
-    """API endpoint to start a camera feed"""
+    """API endpoint to start a camera feed after testing its responsiveness."""
     global vs_list, cam_sources
     if camera_name in cam_sources:
         if camera_name in vs_list:
-            return {'message' : f'Recognition for {camera_name} Camera Already started'}, 200
+            cam_stat_logger.info(f'Recognition for {camera_name} Camera Already started')
+            return {'message': f'Recognition for {camera_name} Camera Already started'}, 200
         else:
-            vs_list[camera_name] = VideoStream(src=cam_sources[camera_name])
-            vs_list[camera_name].start()
-            cam_stat_logger.info(f"Recognition for {camera_name} Camera started successfully.")
-            return {'message' : f'Recognition started for {camera_name}'}, 200
+            # Initialize the video stream
+            vs = VideoStream(src=cam_sources[camera_name])
+            vs.start()
+            # Test if the camera is responsive by trying to read a frame.
+            test_attempts = 5
+            frame = None
+            for attempt in range(test_attempts):
+                frame = vs.read()
+                if frame is not None:
+                    break
+                time.sleep(0.5)  # wait half a second between attempts
+            if frame is None:
+                # If no frame is received after testing, stop the stream and return an error.
+                vs.stop() 
+                cam_stat_logger.error(f'[Test failed], Camera {camera_name} is not responding.')
+                return {'error': f'[Test failed], Camera {camera_name} is not responding.'}, 400
+
+            # If testing passed, add the camera to vs_list.
+            vs_list[camera_name] = vs
+            cam_stat_logger.info(f'[Test passed], Recognition started for {camera_name}')
+            return {'message': f'[Test passed], Recognition started for {camera_name}'}, 200
     else:
-        return {'error' : f'{camera_name} Camera not found'}, 404
+        cam_stat_logger.error(f'{camera_name} Camera not found')
+        return {'error': f'{camera_name} Camera not found'}, 404
+
 
 def Stop_camera(camera_name):
     """API endpoint to stop a camera feed"""
