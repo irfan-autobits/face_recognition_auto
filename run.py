@@ -43,7 +43,7 @@ db.init_app(app)
 
 # add default camera
 with app.app_context():
-    manage_table(drop = True) # drop all tables
+    manage_table(spec = True) # drop all tables
     db_url = app.config['SQLALCHEMY_DATABASE_URI']
     print(f"dburl: {db_url}")
     # import_tab(db_url)
@@ -53,7 +53,7 @@ face_processor = FaceDetectionProcessor(cam_sources, db.session, app)
 
 def send_frame():
     FPS = 1 / 25  # 30 FPS
-    log_interval = 1
+    log_interval = 25
     frame_count = defaultdict(int)
     last_frame_time = defaultdict(lambda: time.time())   
     start_time = defaultdict(lambda: time.time())   
