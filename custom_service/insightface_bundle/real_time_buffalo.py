@@ -127,7 +127,7 @@ def run_buffalo(frame):
     start_time = time.time()  # Start timing before reading the frame
     detected_faces = detect_faces(frame)
     frame_time = time.time() - start_time 
-    exec_time_logger.debug(f"det {frame_time:.4f} seconds")    
+    # exec_time_logger.debug(f"det {frame_time:.4f} seconds")    
     # print(f"Detected {len(detected_faces)} faces.")
 
     # Step 2: Recognize faces
@@ -135,7 +135,7 @@ def run_buffalo(frame):
     start_time = time.time()  # Start timing before reading the frame
     recognized_faces = recognize_faces(frame, detected_faces, mode='local') # remote
     frame_time = time.time() - start_time 
-    exec_time_logger.debug(f"rec {frame_time:.4f} seconds")      
+    # exec_time_logger.debug(f"rec {frame_time:.4f} seconds")      
     # print(f"rec {recognized_faces}")
     compreface_results = []
     # For each detected face, store the embedding in the DB

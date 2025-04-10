@@ -88,7 +88,7 @@ def send_frame():
                                     
                                 # print(prof.key_averages().table(sort_by="cuda_time_total"))                                 
                                 frame_time[cam_name] = time.time() - start_time[cam_name] 
-                                exec_time_logger.debug(f"took {frame_time[cam_name]:.4f} seconds for camera {cam_name}")
+                                # exec_time_logger.debug(f"took {frame_time[cam_name]:.4f} seconds for camera {cam_name}")
 
                                 # At the beginning of processing, read the active camera safely:
                                 # At the beginning of processing, read the active camera safely:

@@ -39,6 +39,6 @@ def save_image(frame, cam_id, box, subject, distance, is_unknown):
     # This might look like "subject/filename.jpg" or "Unknown/filename.jpg"
     relative_path = face_image_path.relative_to(face_dir)
     # Log the full image path for debugging purposes
-    det_logger.info(str(relative_path))
+    # det_logger.info(str(relative_path))
     
     return str(relative_path)
