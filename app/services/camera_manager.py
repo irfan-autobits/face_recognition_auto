@@ -9,23 +9,55 @@ from config.Paths import frame_lock, vs_list, cam_sources
 from config.logger_config import cam_stat_logger 
 
 def Default_cameras():
-    """API endpoint to add default cameras"""
+    """Add and start default cameras, but only if they pass a responsiveness test."""
     try:
         global cam_sources
-        # with current_app.app_context():
-        for cam_name, source in cam_sources.items():
-            new_camera = Camera_list(camera_name=cam_name, camera_url=source)
-            db.session.add(new_camera)
-            print(f"Default camera {cam_name} added successfully")
-        db.session.commit()
-        with frame_lock:
+        valid_cameras = {}  # to hold cameras that passed the test
+        
+        with current_app.app_context():
+            # Test each camera first
             for cam_name, source in cam_sources.items():
-                vs_list[cam_name] = VideoStream(src=source)
-                vs_list[cam_name].start()
-        return {'message' : 'Default cameras added successfully'}, 200
+                cam_stat_logger.info(f"Testing camera {cam_name} at {source}")
+                test_stream = VideoStream(src=source)
+                test_stream.start()
+                test_attempts = 7
+                frame = None
+                for attempt in range(test_attempts):
+                    frame = test_stream.read()
+                    if frame is not None:
+                        cam_stat_logger.info(f"Camera {cam_name} responded on attempt {attempt+1}.")
+                        break
+                    time.sleep(0.5)  # wait half a second between attempts
+
+                if frame is None:
+                    cam_stat_logger.warning(f"Camera {cam_name} did not respond after {test_attempts} attempts. Skipping.")
+                    test_stream.stop()
+                else:
+                    # Camera is responsive, so add it
+                    new_camera = Camera_list(camera_name=cam_name, camera_url=source)
+                    db.session.add(new_camera)
+                    valid_cameras[cam_name] = source
+                    # Stop the test stream; we'll create a new one for normal operation.
+                    test_stream.stop()
+                    cam_stat_logger.info(f"Default camera {cam_name} passed the test and is added.")
+
+            db.session.commit()  # Commit only the valid cameras
+
+            # Now initialize the video streams for the valid cameras
+            with frame_lock:
+                for cam_name, source in valid_cameras.items():
+                    vs = VideoStream(src=source)
+                    vs.start()
+                    vs_list[cam_name] = vs
+                    cam_stat_logger.info(f"Started VideoStream for camera {cam_name}.")
+
+        return {'message': 'Default cameras added successfully', 'valid_cameras': list(valid_cameras.keys())}, 200
+
     except Exception as e:
         db.session.rollback()
-        return {'error' : str(e)}, 500
+        cam_stat_logger.error(f"Error in Default_cameras: {str(e)}")
+        return {'error': str(e)}, 500
+
 
 def Add_camera(camera_name,camera_url):
     """API endpoint to add a camera"""
@@ -82,7 +114,7 @@ def Start_camera(camera_name):
             vs = VideoStream(src=cam_sources[camera_name])
             vs.start()
             # Test if the camera is responsive by trying to read a frame.
-            test_attempts = 5
+            test_attempts = 7
             frame = None
             for attempt in range(test_attempts):
                 frame = vs.read()
@@ -102,7 +134,6 @@ def Start_camera(camera_name):
     else:
         cam_stat_logger.error(f'{camera_name} Camera not found')
         return {'error': f'{camera_name} Camera not found'}, 404
-
 
 def Stop_camera(camera_name):
     """API endpoint to stop a camera feed"""
