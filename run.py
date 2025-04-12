@@ -13,7 +13,7 @@ import config.Paths as paths
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 from config.config import Config
 from app.routes.Route import bp as video_feed_bp, active_cameras
-from app.models.model import db, Detection, Camera_list
+from app.models.model import db, Detection, Camera
 from scripts.manage_db import manage_table, import_tab
 from app.processors.face_detection import FaceDetectionProcessor
 from app.services.camera_manager import Default_cameras
@@ -53,7 +53,7 @@ face_processor = FaceDetectionProcessor(cam_sources, db.session, app)
 
 def send_frame():
     FPS = 1 / 25  # 30 FPS
-    log_interval = 25
+    log_interval = float('inf')
     frame_count = defaultdict(int)
     last_frame_time = defaultdict(lambda: time.time())   
     start_time = defaultdict(lambda: time.time())   

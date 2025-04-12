@@ -1,5 +1,5 @@
 # scripts/manage_db.py
-from app.models.model import db, Detection, Camera_list, Face_recog_User
+from app.models.model import db, Detection, Camera, Face_recog_User
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.orm import sessionmaker
@@ -14,14 +14,14 @@ def manage_table(purge=False, drop=False, spec=False):
             print("Purged all rows in the Detection table.")
         elif spec:
             # Drop the specific table
-            Camera_list.__table__.drop(db.engine)
+            Camera.__table__.drop(db.engine)
             # db.session.commit()
             Face_recog_User.__table__.drop(db.engine)
             if IS_RM_REPORT.lower() == "true":
                 Detection.__table__.drop(db.engine)
             db.session.commit()
             db.create_all()
-            print("Dropped Camera_list and Face_recog_User but not Detection and Embedding.")
+            print("Dropped Camera and Face_recog_User but not Detection and Embedding.")
         elif drop:
             db.drop_all()
             db.create_all()

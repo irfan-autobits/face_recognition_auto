@@ -29,7 +29,9 @@ class FaceDetectionProcessor:
     def process_frame(self, frame, cam_name):
         # results = compreface_api(frame)
         results = cutm_integ(frame)
-
+        details = self.camera_sources.get(cam_name)
+        cam_tag = details.get("tag")
+        print(f"got cam tag:{cam_tag}")
         self.call_counter += 1  # Increment call counter
 
         # Memory cleanup
@@ -84,6 +86,7 @@ class FaceDetectionProcessor:
                         detection = Detection(
                             person = subject, 
                             camera_name=cam_name, 
+                            camera_tag=cam_tag,
                             det_score=probability * 100,
                             distance=distance,
                             timestamp=datetime.now(),

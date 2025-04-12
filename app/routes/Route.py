@@ -6,6 +6,7 @@ from app.services.user_management import sign_up_user, log_in_user
 from app.services.camera_manager import Add_camera, Remove_camera, Start_camera, Stop_camera, List_cameras, Recognition_table
 from app.services.person_journey import get_movement_history
 from app.services.subject_manager import add_subject, list_subject, delete_subject, add_image_to_subject, delete_subject_img
+# from app.services.infrastructure_layout import add_infra_location, remove_location, list_infra_locations
 from flask_socketio import SocketIO
 from flask import send_from_directory, abort
 import os
@@ -57,11 +58,13 @@ def add_camera():
     data = request.get_json()
     camera_name = data.get('camera_name')
     camera_url = data.get('camera_url')
-    if camera_name and camera_url:
-        responce, status = Add_camera(camera_name,camera_url)
+    tag = data.get('tag')  # New
+
+    if camera_name and camera_url and tag:
+        responce, status = Add_camera(camera_name, camera_url, tag)
         return jsonify(responce), status
     else:
-        return {'error' : 'Camera name or url not provided'}, 400
+        return {'error' : 'Camera name or url or tag not provided'}, 400
 
 @bp.route('/api/remove_camera', methods=['POST'])
 def remove_camera():
@@ -263,3 +266,42 @@ def add_subject_img(subject_id):
 def remove_subject_img(img_id):
     response, status = delete_subject_img(img_id)
     return response, status  
+
+
+# @bp.route('/api/location', methods=['POST'])
+# def add_location():
+#     """
+#     Add a new location.
+#     Expects form data or JSON with:
+#       - name: the location's name (e.g., "Floor 1", "Room 101")
+#       - type: the type (e.g., "building", "floor", "room", etc.)
+#       - parent_id (optional): the id of the parent location, if any
+#     """
+#     # Use request.form for form-data or request.get_json() for JSON payload
+#     data = request.get_json() if request.is_json else request.form
+#     name = data.get('name')
+#     loc_type = data.get('type')
+#     parent_id = data.get('parent_id')
+    
+#     if not name or not loc_type:
+#         return jsonify({'error': 'Name and type are required.'}), 400
+#     response, status = add_infra_location(name, loc_type, parent_id)
+#     return response, status  
+
+# @bp.route('/api/location/<int:location_id>', methods=['DELETE'])
+# def delete_location(location_id):
+#     """
+#     Delete a location by ID.
+#     Cascade rules in your model will handle deletion of child locations if configured.
+#     """
+#     response, status = remove_location(location_id)
+#     return response, status 
+
+# @bp.route('/api/location', methods=['GET'])
+# def list_locations():
+#     """
+#     Get all locations in a simple list.
+#     You can further structure this to output a tree if needed.
+#     """
+#     response, status = list_infra_locations()
+#     return response, status 
