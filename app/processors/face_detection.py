@@ -55,7 +55,7 @@ class FaceDetectionProcessor:
                 # print(f"spoof res : {spoof_res}")
 
                 probability = box['probability']
-                if probability <= FACE_DET_TH: 
+                if probability <= float(FACE_DET_TH): 
                     continue
                 subject = result.get('subjects')[0]['subject']
                 distance = result.get('subjects')[0]['similarity']
@@ -66,7 +66,7 @@ class FaceDetectionProcessor:
                 is_unknown = False
                 # if similarity >= float(FACE_REC_TH):
                 # if distance <= 1.17:
-                if distance <= FACE_REC_TH:
+                if distance <= float(FACE_REC_TH):
                     color = (0, 255, 0)  # Green color for text                        
                 else:
                     color = (0, 0, 255)

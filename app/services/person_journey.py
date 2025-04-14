@@ -31,11 +31,10 @@ def get_person_journey(detections):
     if not detections:
         return []
 
-
     journey = []
-    # Use detection timestamp with microseconds removed, and get camera tag for the first detection.
+    # Use the first detection’s timestamp, with microseconds stripped, and its tag.
     first_time = detections[0].timestamp.replace(microsecond=0)
-    cam_tag = detections[0].camera_tag
+    cam_tag = detections[0].camera_tag  # Correctly take the first detection's tag.
     current_segment = {
         'camera_tag': cam_tag,
         'entry_time': first_time.strftime('%Y-%m-%d %H:%M:%S'),
@@ -47,11 +46,11 @@ def get_person_journey(detections):
 
     for det in detections[1:]:
         dt = det.timestamp.replace(microsecond=0)
-        # Look up the tag for the current detection.
-        det_tag = detections[0].camera_tag
+        # Use each detection's own tag instead of detections[0]'s tag.
+        det_tag = det.camera_tag  
         face_proc_logger.debug(f"[DETECTION] {det.camera_name} (tag: {det_tag}) @ {dt.isoformat()}")
 
-        # Skip duplicate timestamp for the same segment.
+        # Skip duplicate timestamps for the same segment.
         if det_tag == current_segment['camera_tag'] and dt == current_segment['start_time_raw']:
             face_proc_logger.debug("[SKIP] Duplicate timestamp for same tag. Skipping.")
             continue
