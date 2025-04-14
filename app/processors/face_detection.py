@@ -6,7 +6,7 @@ from app.processors.frame_draw import Drawing_on_frame
 from app.processors.Save_Face import save_image
 # from app.processors.emb_viz import visulize
 from app.models.model import db, Detection
-from config.Paths import FACE_REC_TH
+from config.Paths import FACE_REC_TH, FACE_DET_TH
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger, det_logger
 from datetime import datetime
 import timeit
@@ -56,7 +56,7 @@ class FaceDetectionProcessor:
                 # print(f"spoof res : {spoof_res}")
 
                 probability = box['probability']
-                if probability <= 0.57:
+                if probability <= FACE_DET_TH: 
                     continue
                 subject = result.get('subjects')[0]['subject']
                 distance = result.get('subjects')[0]['similarity']
@@ -66,8 +66,8 @@ class FaceDetectionProcessor:
                 # embedding = result.get('embedding')
                 is_unknown = False
                 # if similarity >= float(FACE_REC_TH):
-                # if probability > 0.57:
-                if distance <= 1.17:
+                # if distance <= 1.17:
+                if distance <= FACE_REC_TH:
                     color = (0, 255, 0)  # Green color for text                        
                 else:
                     color = (0, 0, 255)
