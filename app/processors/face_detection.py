@@ -31,7 +31,6 @@ class FaceDetectionProcessor:
         results = cutm_integ(frame)
         details = self.camera_sources.get(cam_name)
         cam_tag = details.get("tag")
-        print(f"got cam tag:{cam_tag}")
         self.call_counter += 1  # Increment call counter
 
         # Memory cleanup
