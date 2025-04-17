@@ -1,17 +1,17 @@
-# app/routes/Route.py
+# app/routes/route.py
 import pandas as pd
 from flask import Blueprint, jsonify, render_template, request
 from flask import current_app 
 from app.services.user_management import sign_up_user, log_in_user
-from app.services.camera_manager import Add_camera, Remove_camera, Start_camera, Stop_camera, List_cameras, Recognition_table
+from app.services.camera_manager import add_new_camera, rm_camera, start_camera, stop_camera, list_cameras, recognition_table, start_all_camera, stop_all_camera
 from app.services.person_journey import get_movement_history
 from app.services.subject_manager import add_subject, list_subject, delete_subject, add_image_to_subject, delete_subject_img
 # from app.services.infrastructure_layout import add_infra_location, remove_location, list_infra_locations
 from flask_socketio import SocketIO
 from flask import send_from_directory, abort
 import os
-from config.Paths import FACE_DIR, active_camera, active_camera_lock, SUBJECT_IMG_DIR
-import config.Paths as paths  # Ensure you're updating the module variable
+from config.paths import FACE_DIR, active_camera, active_camera_lock, SUBJECT_IMG_DIR
+import config.paths as paths  # Ensure you're updating the module variable
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 from flask import request, jsonify, current_app
 from werkzeug.utils import secure_filename
@@ -36,8 +36,8 @@ def sign():
     password = data.get('password')
 
     if email and password:
-        responce, status = sign_up_user(email, password)
-        return jsonify(responce), status
+        response, status = sign_up_user(email, password)
+        return jsonify(response), status
     else:
         return {"error": "Email and password are required"}, 400
     
@@ -61,8 +61,8 @@ def add_camera():
     tag = data.get('tag')  # New
 
     if camera_name and camera_url and tag:
-        responce, status = Add_camera(camera_name, camera_url, tag)
-        return jsonify(responce), status
+        response, status = add_new_camera(camera_name, camera_url, tag)
+        return jsonify(response), status
     else:
         return {'error' : 'Camera name or url or tag not provided'}, 400
 
@@ -72,33 +72,59 @@ def remove_camera():
     data = request.get_json()
     camera_name = data.get('camera_name')
     if camera_name :
-        responce, status = Remove_camera(camera_name)
-        return jsonify(responce), status
+        response, status = rm_camera(camera_name)
+        return jsonify(response), status
     else:
         return {'error' : 'Camera name or url not provided'}, 400
 
 @bp.route('/api/start_proc', methods=['POST'])
 def start_proc():
-    """Start the video feed"""
+    """Start the camera"""
     data = request.get_json()
     camera_name = data.get('camera_name')
     if camera_name:
-        responce, status = Start_camera(camera_name)
-        return responce, status
+        response, status = start_camera(camera_name)
+        return response, status
     else:
         return {'error' : 'Camera name not provided for starting processing'}, 400
 
 @bp.route('/api/stop_proc', methods=['POST'])
 def stop_proc():
-    """Stop the video feed"""
+    """Stop the camera"""
     data = request.get_json()
     camera_name = data.get('camera_name')
     if camera_name:
-        responce, status = Stop_camera(camera_name)
-        return responce, status
+        response, status = stop_camera(camera_name)
+        return response, status
     else:
         return {'error' : 'Camera name not provided for stopping processing'}, 400
 
+@bp.route('/api/start_all_proc', methods=['GET'])
+def start_all_proc():
+    """Start all cameras."""
+    response, status = start_all_camera()
+    return jsonify(response), status
+
+@bp.route('/api/stop_all_proc', methods=['GET'])
+def stop_all_proc():
+    """Stop all cameras."""
+    response, status = stop_all_camera()
+    return jsonify(response), status
+
+@bp.route('/api/restart_all_proc', methods=['GET'])
+def restart_all_proc():
+    """Restart all cameras: stop then start."""
+    stop_response, stop_status = stop_all_camera()
+    # Optionally, can check stop_status before proceeding.
+    start_response, start_status = start_all_camera()
+    # want to return both responses, for example:
+    combined_response = {
+        "stop": stop_response,
+        "start": start_response
+    }
+    # In this example, we return the start status, but can be adjusted as needed.
+    return jsonify(combined_response), start_status
+    
 @bp.route('/api/start_feed', methods=['POST'])
 def start_feed():
     data = request.get_json()
@@ -107,7 +133,7 @@ def start_feed():
         paths.active_camera = camera_name
         print(f"activa camera is : {paths.active_camera}")
         cam_stat_logger.debug(f"activa camera is : {paths.active_camera}")
-    return {'message': f'Now emitting frames for {camera_name}'}, 200
+    return {'message': f'Now emitting fDetectionrames for {camera_name}'}, 200
 
 @bp.route('/api/stop_feed', methods=['POST'])
 def stop_feed():
@@ -120,15 +146,19 @@ def stop_feed():
 @bp.route('/api/camera_list', methods=['GET'])
 def List_cam():
     """List all the camera"""
-    responce, status = List_cameras()
-    return responce, status
+    response, status = list_cameras()
+    return response, status
     
 @bp.route('/api/reco_table', methods=['GET'])
 def List_det():
     """List all the Recognitions"""
     page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', 100, type=int)
-    responce, status = Recognition_table(page,limit)
+    limit = request.args.get('limit', 500, type=int)
+    search = request.args.get('search', '', type=str)
+    sort_field = request.args.get('sort_field', 'timestamp', type=str)
+    sort_order = request.args.get('sort_order', 'desc', type=str)
+    offset = (page - 1) * limit
+    responce, status = recognition_table(page,limit, search, sort_field, sort_order, offset)
     return responce, status
 
 @bp.route('/faces/<path:subpath>')
@@ -147,7 +177,7 @@ def serve_sub(subpath):
     if os.path.isfile(file_path):
         return send_from_directory(SUBJECT_IMG_DIR, subpath)
     else:
-        abort(404)        
+        abort(404)
 
 @bp.route('/api/movement/<person_name>', methods=['GET'])
 def movement_history(person_name):

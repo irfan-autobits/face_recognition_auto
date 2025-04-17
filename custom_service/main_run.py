@@ -2,7 +2,7 @@ import traceback
 from flask import jsonify
 import numpy as np
 from custom_service.yunet_detection import FaceDetectorYunet, convert_yunet_to_compreface
-from config.Paths import MODELS_DIR
+from config.paths import MODELS_DIR
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger, det_logger
 
 from custom_service.insightface_bundle.real_time_buffalo import run_buffalo 

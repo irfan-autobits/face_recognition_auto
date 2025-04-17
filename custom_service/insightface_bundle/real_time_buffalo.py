@@ -9,7 +9,7 @@ from config.logger_config import cam_stat_logger , console_logger, exec_time_log
 
 from custom_service.insightface_bundle.recog_split import recognize_faces
 from custom_service.silent_antispoof.real_time_antispoof import test
-from config.Paths import MODELS_DIR, model_pack_name
+from config.paths import MODELS_DIR, model_pack_name
 spoof_dir = MODELS_DIR / "anti_spoof_models"
 # Initialize the InsightFace app with detection and recognition modules.
 # analy_app = FaceAnalysis(allowed_modules=['detection', 'recognition'])

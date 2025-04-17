@@ -1,6 +1,6 @@
 import cv2
 from flask import current_app
-from config.Paths import model_pack_name, BASE_DIR, SUBJECT_IMG_DIR
+from config.paths import model_pack_name, BASE_DIR, SUBJECT_IMG_DIR
 from insightface.app import FaceAnalysis
 from config.logger_config import face_proc_logger 
 import os

@@ -1,9 +1,9 @@
-# final-compre/app/processors/Save_Face.py
+# final-compre/app/processors/save_face.py
 from pathlib import Path
 import cv2
 from datetime import datetime
 from threading import Lock
-from config.Paths import FACE_DIR  # Assume FACE_DIR is a Path object
+from config.paths import FACE_DIR  # Assume FACE_DIR is a Path object
 from config.logger_config import det_logger 
 
 def save_image(frame, cam_id, box, subject, distance, is_unknown):

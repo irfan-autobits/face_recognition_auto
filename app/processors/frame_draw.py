@@ -1,7 +1,7 @@
 # final-compre/app/processors/frame_draw.py
 import cv2
 import numpy as np
-from config.Paths import FACE_REC_TH
+from config.paths import FACE_REC_TH
 np.int = int
 
 def format_subject(subject):
@@ -16,7 +16,7 @@ def format_subject(subject):
     # If there's only one part, return it unchanged (or handle as needed)
     return subject
     
-def Drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, distance, draw_lan=False):
+def drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, distance, draw_lan=False):
     """
     Function to process the frame before sending it to the client.
     You can add your own frame processing logic here (e.g., recognition, drawing).

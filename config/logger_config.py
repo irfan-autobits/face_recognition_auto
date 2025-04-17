@@ -1,7 +1,7 @@
 # final-compre/config/logger_config.py
 import logging
 from logging.handlers import RotatingFileHandler
-from config.Paths import DET_LOG_FILE_PATH, CAM_STAT_LOG_FILE_PATH, EXEC_TIME_LOG_FILE_PATH, FACE_PROC_LOG_FILE_PATH
+from config.paths import DET_LOG_FILE_PATH, CAM_STAT_LOG_FILE_PATH, EXEC_TIME_LOG_FILE_PATH, FACE_PROC_LOG_FILE_PATH
 
 # File paths for different log files
 det_log_path = DET_LOG_FILE_PATH

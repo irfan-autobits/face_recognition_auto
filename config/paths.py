@@ -1,4 +1,4 @@
-# config/Paths.py
+# config/paths.py
 import json
 import os
 from pathlib import Path

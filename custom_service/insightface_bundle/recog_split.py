@@ -3,7 +3,7 @@ import cv2
 import requests
 import base64
 from insightface.model_zoo import get_model
-from config.Paths import INSIGHT_MODELS, model_pack_name, SECRET_KEY
+from config.paths import INSIGHT_MODELS, model_pack_name, SECRET_KEY
 import numpy as np
 from insightface.utils import face_align
 import jwt

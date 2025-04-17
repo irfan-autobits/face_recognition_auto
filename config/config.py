@@ -1,6 +1,6 @@
 # final-compre/config/config.py
 import os
-from config.Paths import SECRET_KEY
+from config.paths import SECRET_KEY
 
 class Config:
     SQLALCHEMY_DATABASE_URI = "postgresql+psycopg2://postgres:postgres@localhost:6432/frs"

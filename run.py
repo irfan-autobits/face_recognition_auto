@@ -8,15 +8,15 @@ import cv2
 import base64
 import torch
 # import nvtx
-from config.Paths import frame_lock, cam_sources, vs_list
-import config.Paths as paths
+from config.paths import frame_lock, cam_sources, vs_list
+import config.paths as paths
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 from config.config import Config
-from app.routes.Route import bp as video_feed_bp, active_cameras
+from app.routes.route import bp as video_feed_bp, active_cameras
 from app.models.model import db, Detection, Camera
 from scripts.manage_db import manage_table, import_tab
 from app.processors.face_detection import FaceDetectionProcessor
-from app.services.camera_manager import Default_cameras
+from app.services.camera_manager import default_cameras
 from flask_cors import CORS
 import time
 from collections import defaultdict
@@ -43,11 +43,11 @@ db.init_app(app)
 
 # add default camera
 with app.app_context():
-    manage_table(spec = True) # drop all tables
+    manage_table(drop = True) # drop all tables
     db_url = app.config['SQLALCHEMY_DATABASE_URI']
     print(f"dburl: {db_url}")
     # import_tab(db_url)
-    responce, status = Default_cameras()
+    responce, status = default_cameras()
 
 face_processor = FaceDetectionProcessor(cam_sources, db.session, app)
 

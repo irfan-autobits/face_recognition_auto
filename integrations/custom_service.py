@@ -2,7 +2,7 @@
 # from custom_service.main_run import yunet_detect, find_faces_post, init_model, RetinaFace_detect
 from custom_service.main_run import insightface_buffalo
 # from custom_service.main_run import tensorrt_buffalo
-from config.Paths import IS_RECOGNIZE
+from config.paths import IS_RECOGNIZE
 
 def cutm_integ(frame):
 

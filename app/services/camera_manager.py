@@ -4,30 +4,33 @@ import json
 import time
 from app.models.model import Detection, Camera, Embedding, db
 from flask import current_app
-from app.processors.VideoCapture import VideoStream  
-from config.Paths import frame_lock, vs_list, cam_sources
+from app.processors.videocapture import VideoStream  
+from config.paths import frame_lock, vs_list, cam_sources
 from config.logger_config import cam_stat_logger 
+from sqlalchemy.orm import joinedload
+from app.models.model import Detection, Subject, Camera
 
-def Default_cameras():
+def default_cameras():
     """Add and start default cameras, testing each for responsiveness.
-       Optionally, assign a tag for grouping (here we use the camera name as tag).
+       If a camera passes the test, use the same VideoStream for live processing.
     """
     try:
-        valid_cameras = {}  # to hold cameras that passed the test
-        
+        valid_cameras = {}  # dictionary to hold working streams keyed by camera name
+
         with current_app.app_context():
-            # Test each camera first
+            # Iterate over your camera sources (each source is a dict with 'url' and 'tag')
             for cam_name, details in cam_sources.items():
                 source = details.get("url")
                 tag = details.get("tag")  # Use provided tag
-                
+
                 cam_stat_logger.info(f"Testing camera {cam_name} at {source}")
-                test_stream = VideoStream(src=source)
-                test_stream.start()
+                # Create one VideoStream instance for testing that will also be used live if it passes
+                vs = VideoStream(src=source)
+                vs.start()
                 test_attempts = 7
                 frame = None
                 for attempt in range(test_attempts):
-                    frame = test_stream.read()
+                    frame = vs.read()
                     if frame is not None:
                         cam_stat_logger.info(f"Camera {cam_name} responded on attempt {attempt+1}.")
                         break
@@ -35,25 +38,20 @@ def Default_cameras():
 
                 if frame is None:
                     cam_stat_logger.warning(f"Camera {cam_name} did not respond after {test_attempts} attempts. Skipping.")
-                    test_stream.stop()
+                    vs.stop()
                 else:
-                    # Camera is responsive, so add it
-                    # Create a Camera record including the tag.
+                    # Camera is responsive, so add it to the DB and keep the stream
                     new_camera = Camera(camera_name=cam_name, camera_url=source, tag=tag)
                     db.session.add(new_camera)
-                    valid_cameras[cam_name] = source
-                    # Stop the test stream; we'll initialize a new one for live processing.
-                    test_stream.stop()
+                    # Save the working stream (vs) for live processing
+                    valid_cameras[cam_name] = vs
                     cam_stat_logger.info(f"Default camera {cam_name} passed the test and is added with tag {tag}.")
 
-            db.session.commit()  # Commit only the valid cameras
+            db.session.commit()  # Commit only the valid camera records
 
-            # Now initialize the video streams for the valid cameras.
+            # With a lock, update the global vs_list with our working streams from valid_cameras.
             with frame_lock:
-                for cam_name, source in valid_cameras.items():
-                    vs = VideoStream(src=source)
-                    cam_stat_logger.info(f'[Debug] default Recognition for {source} Camera started')
-                    vs.start()
+                for cam_name, vs in valid_cameras.items():
                     vs_list[cam_name] = vs
                     cam_stat_logger.info(f"Started VideoStream for camera {cam_name}.")
 
@@ -66,7 +64,7 @@ def Default_cameras():
 
 # Example: Adding a camera to Room 101.
 
-def Add_camera(camera_name, camera_url, tag):
+def add_new_camera(camera_name, camera_url, tag):
     """API endpoint to add a camera"""
     cam_stat_logger.info(f"[arg] at add cam {camera_name} url:{camera_url} tag:{tag} ")
     new_camera = Camera(camera_name=camera_name, camera_url=camera_url, tag=tag)
@@ -76,19 +74,19 @@ def Add_camera(camera_name, camera_url, tag):
         with current_app.app_context():
             with frame_lock:
                 cam_sources[camera_name] = {"url": camera_url, "tag": tag }
-                responce, status = Start_camera(camera_name)
+                response, status = start_camera(camera_name)
                 if status == 200:
                     db.session.add(new_camera)
                     db.session.commit()                
                     cam_stat_logger.info(f"new {camera_name} Camera added successfully")
-            return responce, status
+            return response, status
         
     except Exception as e:
         db.session.rollback()
         cam_stat_logger.error(f"Failed to add {camera_name} camera: {str(e)}")
         return {'error' : str(e)}, 500
 
-def Start_camera(camera_name):
+def start_camera(camera_name):
     """API endpoint to start a camera feed after testing its responsiveness."""
     cam_stat_logger.info(f"[arg] at start cam {camera_name}.")
     global vs_list, cam_sources
@@ -125,8 +123,17 @@ def Start_camera(camera_name):
         cam_stat_logger.info(f'[Test passed], Recognition started for {camera_name}')
         return {'message': f'[Test passed], Recognition started for {camera_name}'}, 200
 
+def start_all_camera():
+    """API endpoint to start all camera feeds and return a summary for each."""
+    global vs_list, cam_sources
+    results = {}
+    # Iterate over a copy of keys in cam_sources (to avoid modification issues)
+    for camera_name in list(cam_sources.keys()):
+        response, status = start_camera(camera_name)
+        results[camera_name] = {"response": response, "status": status}
+    return results, 200
         
-def Remove_camera(camera_name):
+def rm_camera(camera_name):
     """API endpoint to remove a camera"""
     global vs_list, cam_sources
     try:
@@ -136,12 +143,12 @@ def Remove_camera(camera_name):
                 db.session.delete(camera)
                 db.session.commit()
                 with frame_lock:
-                    responce, status = Stop_camera(camera_name)
+                    response, status = stop_camera(camera_name)
                     cam_stat_logger.info(f"{camera_name} Camera removed successfully")
-                    # responce, status = {'message' : f"Camera {camera_name} removed successfully"}, 200
+                    # response, status = {'message' : f"Camera {camera_name} removed successfully"}, 200
                     if camera_name in cam_sources:
                         del cam_sources[camera_name]
-                return responce, status
+                return response, status
             else:
                 return {'error' : f'{camera_name} Camera not found'}, 404
     except Exception as e:
@@ -149,8 +156,8 @@ def Remove_camera(camera_name):
         cam_stat_logger.error(f"Failed to Remove {camera_name} camera: {str(e)}")
         return {'error' : str(e)}, 500
 
-def Stop_camera(camera_name):
-    """API endpoint to stop a camera feed"""
+def stop_camera(camera_name):
+    """API endpoint to stop a camera process"""
     global vs_list, cam_sources
     if camera_name in cam_sources:
         if camera_name in vs_list:
@@ -162,8 +169,18 @@ def Stop_camera(camera_name):
             return {'error' : f'Recognition for {camera_name} Camera Already stopped'}, 404
     else:
         return {'error' : f'{camera_name} Camera not found'}, 404   
-        
-def List_cameras():
+
+def stop_all_camera():
+    """API endpoint to stop all camera processes and return a summary for each."""
+    global vs_list, cam_sources
+    results = {}
+    # Iterate over a copy of the keys to avoid modification issues
+    for camera_name in list(cam_sources.keys()):
+        response, status = stop_camera(camera_name)
+        results[camera_name] = {"response": response, "status": status}
+    return results, 200
+
+def list_cameras():
     """API endpoint to list all the cameras with their status"""
     try:
         with current_app.app_context():
@@ -182,22 +199,72 @@ def List_cameras():
         db.session.rollback()
         cam_stat_logger.error(f"Failed to list cameras: {str(e)}")
         return {'error': str(e)}, 500
-     
-def Recognition_table(page,limit):
+
+def recognition_table(page,limit, search, sort_field, sort_order, offset):
     """API endpoint to list all Recognition"""
     try:
-        with current_app.app_context():
-            # Get pagination parameters from query string
-            offset = (page - 1) * limit
-            # Query detections in descending order (adjust order as needed)
-            detection = (Detection.query
-                      .order_by(Detection.timestamp.desc())
-                      .limit(limit)
-                      .offset(offset)
-                      .all())
-            detection_list = [{"id":det.id, "person":det.person, "camera_name":det.camera_name, "camera_tag":det.camera_tag, "det_score":det.det_score, "distance":det.distance, "timestamp":det.timestamp.isoformat(), "det_face":det.det_face} for det in detection]
-            return {'detections': detection_list}, 200
+        with current_app.app_context():        
+            # ─── build base query (outerjoin so subj can be None) ─────────────
+            query = (
+                Detection
+                .query
+                .outerjoin(Subject)
+                .outerjoin(Camera)
+            )
+
+            # ─── full‐text search over person|camera|tag ───────────────────────
+            if search:
+                like_val = f"%{search}%"
+                query = query.filter(
+                    Subject.subject_name.ilike(like_val) |
+                    Camera.camera_name .ilike(like_val) |
+                    Camera.tag         .ilike(like_val)
+                )
+
+            # ─── apply sorting ─────────────────────────────────────────────────
+            sort_col = getattr(Detection, sort_field, Detection.timestamp)
+            sort_col = sort_col.asc() if sort_order == 'asc' else sort_col.desc()
+
+            # ─── fetch with joined‑load to avoid N+1 ──────────────────────────
+            detections = (
+                query
+                .options(
+                    joinedload(Detection.subject),
+                    joinedload(Detection.camera),
+                )
+                .order_by(sort_col)
+                .offset(offset)
+                .limit(limit)
+                .all()
+            )
+
+            # ─── serialize, defaulting to "Unknown" ────────────────────────────
+            body = []
+            for d in detections:
+                # if you created a dummy subject_name="__UNKNOWN__", hide it here:
+                name = (
+                    d.subject.subject_name
+                    if d.subject and d.subject.subject_name != "__UNKNOWN__"
+                    else "Unknown"
+                )
+                body.append({
+                    "id":          str(d.rec_no),
+                    "subject":     name,
+                    "camera_name": d.camera.camera_name,
+                    "camera_tag":  d.camera.tag,
+                    "det_score":   d.det_score,
+                    "distance":    d.distance,
+                    "timestamp":   d.timestamp.isoformat(),
+                    "det_face":    d.det_face,
+                })
+
+            return {
+                'detections': body,
+                'page':       page,
+                'limit':      limit
+            }, 200
+
     except Exception as e:
         db.session.rollback()
-        cam_stat_logger.error(f"Failed to list cameras: {str(e)}")
-        return {'error' : str(e)}, 500
+        cam_stat_logger.error(f"Failed to list detections: {str(e)}")
+        return {'error': str(e)}, 500

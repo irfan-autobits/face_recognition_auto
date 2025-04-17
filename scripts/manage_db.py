@@ -3,7 +3,7 @@ from app.models.model import db, Detection, Camera, Face_recog_User
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.orm import sessionmaker
-from config.Paths import IS_RM_REPORT
+from config.paths import IS_RM_REPORT
 
 def manage_table(purge=False, drop=False, spec=False):
     try:

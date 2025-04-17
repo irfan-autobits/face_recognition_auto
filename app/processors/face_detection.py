@@ -1,19 +1,20 @@
 # final-compre/app/processors/face_detection.py
 # from integrations.Compre_Api import compreface_api
 import cv2
+import pytz
 from integrations.custom_service import cutm_integ
-from app.processors.frame_draw import Drawing_on_frame
-from app.processors.Save_Face import save_image
+from app.processors.frame_draw import drawing_on_frame
+from app.processors.save_face import save_image
 # from app.processors.emb_viz import visulize
-from app.models.model import db, Detection
-from config.Paths import FACE_REC_TH, FACE_DET_TH
+from app.models.model import db, Detection, Subject, Camera, Detection
+from config.paths import FACE_REC_TH, FACE_DET_TH
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger, det_logger
 from datetime import datetime
 import timeit
 import time
 import psutil
 import ctypes
-from config.Paths import IS_GEN_REPORT
+from config.paths import IS_GEN_REPORT
 
 class FaceDetectionProcessor:
     def __init__(self, camera_sources, db_session, app):
@@ -76,24 +77,27 @@ class FaceDetectionProcessor:
                 # exec_time_logger.debug(f"detection - {detector_time/1000},calc - {calc_time/1000} camera :{cam_name} for {len(results)} result")
 
                 # visulize(embedding)
-                frame = Drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, distance, draw_lan=False)  
+                frame = drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, distance, draw_lan=False)  
                 if IS_GEN_REPORT.lower() == "true":
                     face_path = save_image(frame, cam_name, box, subject, distance, is_unknown)
                     face_url = f"http://localhost:5757/faces/{face_path}"
                     # Use the app context explicitly
                     with self.app.app_context():
-                        detection = Detection(
-                            person = subject, 
-                            camera_name=cam_name, 
-                            camera_tag=cam_tag,
-                            det_score=probability * 100,
-                            distance=distance,
-                            timestamp=datetime.now(),
-                            det_face=face_url
-                        )
-                        self.db_session.add(detection)
-                        self.db_session.commit()
-
+                        subj = Subject.query.filter_by(subject_name=subject).first()
+                        cam  = Camera.query.filter_by(camera_name=cam_name).first()
+                        if not cam:
+                                det_logger.error(f"Couldn't find Camera({cam_name})")
+                        else :
+                            det = Detection(
+                                subject_id=subj.id if subj else None,
+                                camera_id=cam.id,
+                                det_score=probability * 100,
+                                distance=distance,
+                                timestamp=datetime.now(pytz.utc),
+                                det_face=face_url
+                            )
+                            self.db_session.add(det)
+                            self.db_session.commit()                            
                         # # Commit every 10 detections
                         # if len(self.db_session.new) % 10 == 0:
                         #     self.db_session.commit()
