@@ -79,6 +79,9 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default_fallback_key')
 
 # Define a global lock
 frame_lock = Lock()
+vs_lock = threading.Lock() 
+model_lock = threading.Lock()
+cam_sources_lock = threading.Lock()
 vs_list = dict()
 active_camera_lock = threading.Lock()
 active_camera = None

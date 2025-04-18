@@ -1,4 +1,4 @@
-# final-compre/app/processors/VideoCapture.py
+# app/processors/videocapture.py
 import subprocess
 import cv2
 import numpy as np

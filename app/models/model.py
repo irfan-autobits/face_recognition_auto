@@ -1,11 +1,13 @@
 # final-compre/app/models/model.py
 from datetime import datetime
+import threading
 import pytz
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 import uuid
 from sqlalchemy import Sequence, Integer
-
+from sqlalchemy.orm import scoped_session, sessionmaker
+# db_session = scoped_session(sessionmaker())
 db = SQLAlchemy()
 
 # Helper function to get current UTC time with timezone
@@ -57,7 +59,7 @@ class Img(db.Model):
 class Camera(db.Model):
     __tablename__ = 'camera'
     id           = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    camera_name  = db.Column(db.String(50), nullable=False, unique=True)
+    camera_name  = db.Column(db.String(50), nullable=False, unique=True, index=True)
     camera_url   = db.Column(db.Text,       nullable=False)
     tag          = db.Column(db.String(50), nullable=False)
 

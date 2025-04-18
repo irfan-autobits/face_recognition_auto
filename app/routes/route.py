@@ -3,7 +3,7 @@ import pandas as pd
 from flask import Blueprint, jsonify, render_template, request
 from flask import current_app 
 from app.services.user_management import sign_up_user, log_in_user
-from app.services.camera_manager import add_new_camera, rm_camera, start_camera, stop_camera, list_cameras, recognition_table, start_all_camera, stop_all_camera
+from app.services.camera_manager import camera_service, recognition_table
 from app.services.person_journey import get_movement_history
 from app.services.subject_manager import add_subject, list_subject, delete_subject, add_image_to_subject, delete_subject_img
 # from app.services.infrastructure_layout import add_infra_location, remove_location, list_infra_locations
@@ -52,30 +52,21 @@ def login():
         return jsonify({'error': 'Email and password are required'}), 400
     return log_in_user(email, password)
 
+# ─── camera management  ─────────────────────────────────────────────────
 @bp.route('/api/add_camera', methods=['POST'])
-def add_camera():
-    """API endpoint to add a camera"""
+def add_camera_route():
     data = request.get_json()
-    camera_name = data.get('camera_name')
-    camera_url = data.get('camera_url')
-    tag = data.get('tag')  # New
-
-    if camera_name and camera_url and tag:
-        response, status = add_new_camera(camera_name, camera_url, tag)
-        return jsonify(response), status
-    else:
-        return {'error' : 'Camera name or url or tag not provided'}, 400
+    resp, status = camera_service.add_camera(
+        data['camera_name'], data['camera_url'], data['tag']
+    )
+    return jsonify(resp), status
 
 @bp.route('/api/remove_camera', methods=['POST'])
-def remove_camera():
+def remove_camera_route():
     """API endpoint to remove a camera"""
     data = request.get_json()
-    camera_name = data.get('camera_name')
-    if camera_name :
-        response, status = rm_camera(camera_name)
-        return jsonify(response), status
-    else:
-        return {'error' : 'Camera name or url not provided'}, 400
+    response, status = camera_service.remove_camera(data.get('camera_name'))
+    return jsonify(response), status
 
 @bp.route('/api/start_proc', methods=['POST'])
 def start_proc():
@@ -83,7 +74,7 @@ def start_proc():
     data = request.get_json()
     camera_name = data.get('camera_name')
     if camera_name:
-        response, status = start_camera(camera_name)
+        response, status = camera_service.start_camera(camera_name)
         return response, status
     else:
         return {'error' : 'Camera name not provided for starting processing'}, 400
@@ -94,7 +85,7 @@ def stop_proc():
     data = request.get_json()
     camera_name = data.get('camera_name')
     if camera_name:
-        response, status = stop_camera(camera_name)
+        response, status = camera_service.stop_camera(camera_name)
         return response, status
     else:
         return {'error' : 'Camera name not provided for stopping processing'}, 400
@@ -102,21 +93,21 @@ def stop_proc():
 @bp.route('/api/start_all_proc', methods=['GET'])
 def start_all_proc():
     """Start all cameras."""
-    response, status = start_all_camera()
+    response, status = camera_service.start_all()
     return jsonify(response), status
 
 @bp.route('/api/stop_all_proc', methods=['GET'])
 def stop_all_proc():
     """Stop all cameras."""
-    response, status = stop_all_camera()
+    response, status = camera_service.stop_all()
     return jsonify(response), status
 
 @bp.route('/api/restart_all_proc', methods=['GET'])
 def restart_all_proc():
     """Restart all cameras: stop then start."""
-    stop_response, stop_status = stop_all_camera()
+    stop_response, stop_status = camera_service.start_all()
     # Optionally, can check stop_status before proceeding.
-    start_response, start_status = start_all_camera()
+    start_response, start_status = camera_service.start_all()
     # want to return both responses, for example:
     combined_response = {
         "stop": stop_response,
@@ -124,7 +115,13 @@ def restart_all_proc():
     }
     # In this example, we return the start status, but can be adjusted as needed.
     return jsonify(combined_response), start_status
-    
+
+@bp.route('/api/camera_list', methods=['GET'])
+def List_cam():
+    """List all the camera"""
+    response, status = camera_service.list_cameras()
+    return response, status
+
 @bp.route('/api/start_feed', methods=['POST'])
 def start_feed():
     data = request.get_json()
@@ -143,12 +140,7 @@ def stop_feed():
         cam_stat_logger.debug(f"activa camera is : {paths.active_camera}")
     return {'message': f'Now emitting frames for None'}, 200
 
-@bp.route('/api/camera_list', methods=['GET'])
-def List_cam():
-    """List all the camera"""
-    response, status = list_cameras()
-    return response, status
-    
+# ─── serving table  ─────────────────────────────────────────────────
 @bp.route('/api/reco_table', methods=['GET'])
 def List_det():
     """List all the Recognitions"""
@@ -161,6 +153,7 @@ def List_det():
     responce, status = recognition_table(page,limit, search, sort_field, sort_order, offset)
     return responce, status
 
+# ─── serving img routes  ─────────────────────────────────────────────────
 @bp.route('/faces/<path:subpath>')
 def serve_face(subpath):
     """Serve face imgs"""
@@ -179,6 +172,7 @@ def serve_sub(subpath):
     else:
         abort(404)
 
+# ─── person movement ─────────────────────────────────────────────────
 @bp.route('/api/movement/<person_name>', methods=['GET'])
 def movement_history(person_name):
     history = get_movement_history(person_name)
@@ -193,7 +187,7 @@ def get_movement(person_name):
     history = get_movement_history(person_name, start_time, end_time)
     return jsonify(history)
 
-
+# ─── subject management ─────────────────────────────────────────────────
 @bp.route('/api/subject_list', methods=['GET'])
 def subject_list():
     print("on list sub")
