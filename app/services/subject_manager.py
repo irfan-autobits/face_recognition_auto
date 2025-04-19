@@ -1,6 +1,6 @@
 import cv2
 from flask import current_app
-from config.paths import model_pack_name, BASE_DIR, SUBJECT_IMG_DIR
+from config.paths import MODEL_PACK_NAME, BASE_DIR, SUBJECT_IMG_DIR
 from insightface.app import FaceAnalysis
 from config.logger_config import face_proc_logger 
 import os
@@ -8,7 +8,7 @@ from app.models.model import Subject, Img, Embedding, db
 from werkzeug.utils import secure_filename
 
 # Initialize the face analysis engine
-analy_app = FaceAnalysis(name=model_pack_name, 
+analy_app = FaceAnalysis(name=MODEL_PACK_NAME, 
                          allowed_modules=['detection', 'landmark_3d_68','recognition'])
 analy_app.prepare(ctx_id=0, det_size=(640, 640))
 SUBJECT_DIR1 = BASE_DIR / "subjects_img" / "Autobits_emp"
@@ -22,7 +22,7 @@ def store_embedding(subject, embedding_vector, img_id=None):
         with current_app.app_context():
             embedding_entry = Embedding(
                 embedding=embedding_vector,
-                calculator=f"{model_pack_name}",
+                calculator=f"{MODEL_PACK_NAME}",
                 subject_id=subject.id,  # Link to the subject
                 img_id=img_id            # Link to the image (optional)
             )

@@ -9,12 +9,12 @@ from config.logger_config import cam_stat_logger , console_logger, exec_time_log
 
 from custom_service.insightface_bundle.recog_split import recognize_faces
 from custom_service.silent_antispoof.real_time_antispoof import test
-from config.paths import MODELS_DIR, model_pack_name
+from config.paths import MODELS_DIR, MODEL_PACK_NAME
 spoof_dir = MODELS_DIR / "anti_spoof_models"
 # Initialize the InsightFace app with detection and recognition modules.
 # analy_app = FaceAnalysis(allowed_modules=['detection', 'recognition'])
-print(f"using model pack {model_pack_name}")
-analy_app = FaceAnalysis(name=model_pack_name ,allowed_modules=['detection', 'landmark_3d_68'])
+print(f"using model pack {MODEL_PACK_NAME}")
+analy_app = FaceAnalysis(name=MODEL_PACK_NAME ,allowed_modules=['detection', 'landmark_3d_68'])
 analy_app.prepare(ctx_id=0, det_size=(640, 640))
 
 def verification(input_embedding):

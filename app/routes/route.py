@@ -10,8 +10,8 @@ from app.services.subject_manager import add_subject, list_subject, delete_subje
 from flask_socketio import SocketIO
 from flask import send_from_directory, abort
 import os
-from config.paths import FACE_DIR, active_camera, active_camera_lock, SUBJECT_IMG_DIR
-import config.paths as paths  # Ensure you're updating the module variable
+from config.paths import FACE_DIR, SUBJECT_IMG_DIR
+import config.state as state  # Ensure you're updating the module variable
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 from flask import request, jsonify, current_app
 from werkzeug.utils import secure_filename
@@ -126,18 +126,18 @@ def List_cam():
 def start_feed():
     data = request.get_json()
     camera_name = data.get('camera_name')    
-    with paths.active_camera_lock:
-        paths.active_camera = camera_name
-        print(f"activa camera is : {paths.active_camera}")
-        cam_stat_logger.debug(f"activa camera is : {paths.active_camera}")
+    with state.active_camera_lock:
+        state.active_camera = camera_name
+        print(f"activa camera is : {state.active_camera}")
+        cam_stat_logger.debug(f"activa camera is : {state.active_camera}")
     return {'message': f'Now emitting fDetectionrames for {camera_name}'}, 200
 
 @bp.route('/api/stop_feed', methods=['POST'])
 def stop_feed():
-    with paths.active_camera_lock:
-        paths.active_camera = None
-        print(f"activa camera is : {paths.active_camera}")
-        cam_stat_logger.debug(f"activa camera is : {paths.active_camera}")
+    with state.active_camera_lock:
+        state.active_camera = None
+        print(f"activa camera is : {state.active_camera}")
+        cam_stat_logger.debug(f"activa camera is : {state.active_camera}")
     return {'message': f'Now emitting frames for None'}, 200
 
 # ─── serving table  ─────────────────────────────────────────────────

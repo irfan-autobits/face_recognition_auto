@@ -17,8 +17,8 @@ import ctypes
 from config.paths import IS_GEN_REPORT
 
 class FaceDetectionProcessor:
-    def __init__(self, camera_sources, db_session, app):
-        self.camera_sources = camera_sources
+    def __init__(self, db_session, app):
+        # self.camera_sources = camera_sources
         self.db_session = db_session
         self.app = app  # Store the Flask app instance
         self.max_call_counter = 1000
@@ -30,10 +30,11 @@ class FaceDetectionProcessor:
     def process_frame(self, frame, cam_name):
         # results = compreface_api(frame)
         results = cutm_integ(frame)
-        details = self.camera_sources.get(cam_name)
-        cam_tag = details.get("tag")
+        # details = self.camera_sources.get(cam_name)
+        # cam_tag = details.get("tag")
         self.call_counter += 1  # Increment call counter
-
+        cv2.putText(frame, "sample_text", (20, 20),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         # Memory cleanup
         if self.call_counter % self.max_call_counter == 0:
             process = psutil.Process()  # Get current process
@@ -78,7 +79,7 @@ class FaceDetectionProcessor:
 
                 # visulize(embedding)
                 frame = drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, distance, draw_lan=False)  
-                if IS_GEN_REPORT.lower() == "true":
+                if IS_GEN_REPORT:
                     face_path = save_image(frame, cam_name, box, subject, distance, is_unknown)
                     face_url = f"http://localhost:5757/faces/{face_path}"
                     # Use the app context explicitly

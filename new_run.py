@@ -10,8 +10,9 @@ import cv2
 import base64
 import torch
 # import nvtx
-from config.paths import frame_lock, cam_sources, vs_list
-import config.paths as paths
+from config.paths import cam_sources
+from config.state import frame_lock, vs_lock
+import config.state as state
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 from config.config import Config
 from app.routes.route import bp as video_feed_bp
@@ -38,10 +39,11 @@ db.init_app(app)
 
 with app.app_context():
     manage_table(drop=True)
-    camera_service.default_cameras()
+    # read your env‑provided dict exactly once, then forget cam_sources
+    camera_service.bootstrap_from_env(cam_sources)
 
-face_processor = FaceDetectionProcessor(cam_sources, db.session, app)
-processing    = ProcessingService(app, face_processor, max_workers=4)
+face_processor = FaceDetectionProcessor(db.session, app)
+processing     = ProcessingService(app, face_processor, max_workers=4)
 
 def send_frame():
     FPS = 1/25
@@ -50,7 +52,8 @@ def send_frame():
 
     while True:
         with frame_lock:
-            for cam_name, vs in list(vs_list.items()):
+            # get a thread‑safe snapshot
+            for cam_name, vs in camera_service.streams.items():
                 raw = vs.read()
                 frame_count[cam_name] += 1
                 if raw is None:
@@ -67,9 +70,8 @@ def emit_frame(cam_name, frame):
     socketio.start_background_task(_emit, cam_name, frame)
 
 def _emit(cam_name, frame):
-    with paths.active_camera_lock:
-        if paths.active_camera != cam_name:
-            return
+    with state.active_camera_lock:
+        if state.active_camera != cam_name: return
     _, buf = cv2.imencode('.jpg', frame)
     b64   = base64.b64encode(buf).decode('utf-8')
     socketio.emit('frame', {'camera_name': cam_name, 'image': b64})

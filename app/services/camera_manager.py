@@ -4,14 +4,22 @@ import time
 from flask import current_app
 from app.models.model import Camera, db
 from app.processors.videocapture import VideoStream
-from config.paths import cam_sources, vs_list, vs_lock
+from config.state import vs_lock, frame_lock
 from config.logger_config import cam_stat_logger
 
 class CameraService:
-    def __init__(self, vs_lock, cam_sources, vs_list):
-        self.vs_lock = vs_lock
-        self.cam_sources = cam_sources
-        self.vs_list = vs_list
+    def __init__(self, frame_lock, vs_lock):
+        # we no longer carry cam_sources or vs_list around in module globals
+        self.frame_lock = frame_lock
+        self.vs_lock    = vs_lock
+        self._vs_list   = {}     # name → VideoStream
+        # the DB is the canonical source of truth for camera configs
+
+    @property
+    def streams(self):
+        """Thread‑safe snapshot of all VideoStream instances."""
+        with self.vs_lock:
+            return dict(self._vs_list)
 
     def _start_stream(self, name, source):
         """Test and start a VideoStream for a camera."""
@@ -23,7 +31,7 @@ class CameraService:
             if frame is not None:
                 cam_stat_logger.info(f"Camera {name} responded on attempt {i+1}.")
                 with self.vs_lock:
-                    self.vs_list[name] = vs
+                    self._vs_list[name] = vs
                 return True
             time.sleep(0.5)
         vs.stop()
@@ -38,8 +46,6 @@ class CameraService:
         # Persist camera record
         new_cam = Camera(camera_name=name, camera_url=url, tag=tag)
         db.session.add(new_cam)
-        # Update source config
-        self.cam_sources[name] = {"url": url, "tag": tag}
 
         # Test & start
         if self._start_stream(name, url):
@@ -48,29 +54,27 @@ class CameraService:
             return {'message': f"Camera {name} added and started"}, 200
         else:
             db.session.rollback()
-            # rollback cam_sources entry
-            self.cam_sources.pop(name, None)
             return {'error': f"Camera {name} not responding"}, 400
 
     def start_camera(self, name):
         """Start an existing camera if not already running."""
-        details = self.cam_sources.get(name)
-        if not details:
-            return {'error': f"Camera {name} not found in sources"}, 404
-        if name in self.vs_list:
+        cam = Camera.query.filter_by(camera_name=name).first()
+        if not cam:
+            return {'error': f"Camera {name} not found"}, 404        
+        if name in self._vs_list:
             return {'message': f"Camera {name} already started"}, 200
-        if self._start_stream(name, details['url']):
+        if self._start_stream(name, cam.camera_url):
             return {'message': f"Camera {name} started"}, 200
         else:
             return {'error': f"Camera {name} not responding"}, 400
 
     def stop_camera(self, name):
         """Stop a running camera stream."""
-        if name not in self.vs_list:
+        if name not in self._vs_list:
             return {'error': f"Camera {name} is not running"}, 404
         with self.vs_lock:
-            self.vs_list[name].stop()
-            del self.vs_list[name]
+            self._vs_list[name].stop()
+            del self._vs_list[name]
         cam_stat_logger.info(f"Stopped camera {name}")
         return {'message': f"Camera {name} stopped"}, 200
 
@@ -82,35 +86,33 @@ class CameraService:
         db.session.delete(cam)
         db.session.commit()
         resp, status = self.stop_camera(name)
-        # Remove from source config
-        self.cam_sources.pop(name, None)
         cam_stat_logger.info(f"Removed camera {name}")
         return resp, status
 
     def start_all(self):
         """Start all configured cameras."""
         results = {}
-        for name in list(self.cam_sources.keys()):
-            resp, status = self.start_camera(name)
-            results[name] = {'response': resp, 'status': status}
+        for cam in Camera.query:
+            resp, st = self.start_camera(cam.camera_name)
+            results[cam.camera_name] = {'response': resp, 'status': st}
         return results, 200
 
     def stop_all(self):
         """Stop all running cameras."""
         results = {}
-        for name in list(self.vs_list.keys()):
+        for name in list(self._vs_list.keys()):
             resp, status = self.stop_camera(name)
             results[name] = {'response': resp, 'status': status}
         return results, 200
 
-    def default_cameras(self):
+    def bootstrap_from_env(self, env_sources):
         """
-        Loop over all entries in cam_sources and call add_camera for each.
+        On app‑startup only: read your env‑dict, add each to DB & spin up its stream.
         """
         results = {}
-        for name, details in self.cam_sources.items():
-            resp, status = self.add_camera(name, details['url'], details['tag'])
-            results[name] = {'status': status, 'response': resp}
+        for name, details in env_sources.items():
+            resp, st = self.add_camera(name, details['url'], details['tag'])
+            results[name] = {'status': st, 'response': resp}
         return results, 200
     
     def list_cameras(self):
@@ -122,13 +124,12 @@ class CameraService:
                 'camera_name': cam.camera_name,
                 'camera_url': cam.camera_url,
                 'tag': cam.tag,
-                'status': cam.camera_name in self.vs_list
+                'status': cam.camera_name in self._vs_list
             })
         return {'cameras': camera_list}, 200
 
-
-# Module‑level instance to import in your routes
-camera_service = CameraService(vs_lock, cam_sources, vs_list)
+# Module‑level instance
+camera_service = CameraService(frame_lock, vs_lock)
 
 from sqlalchemy.orm import joinedload
 from app.models.model import Detection, Subject, Camera

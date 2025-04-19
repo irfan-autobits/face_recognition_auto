@@ -3,13 +3,23 @@ import cv2
 import requests
 import base64
 from insightface.model_zoo import get_model
-from config.paths import INSIGHT_MODELS, model_pack_name, SECRET_KEY
+from config.paths import INSIGHT_MODELS, MODEL_PACK_NAME, SECRET_KEY
 import numpy as np
 from insightface.utils import face_align
 import jwt
 
 # Load model for local processing
-rec_model = INSIGHT_MODELS / model_pack_name / "w600k_r50.onnx"
+model_file_map = {
+    "antelopev2": "w600k_r50.onnx",
+    "buffalo_l": "w600k_r50.onnx",
+    "buffalo_m": "w600k_r50.onnx",
+    "buffalo_s": "w600k_mbf.onnx",
+    "buffalo_sc": "w600k_mbf.onnx",
+}
+
+model_filename = model_file_map.get(MODEL_PACK_NAME, "w600k_r50.onnx")
+rec_model = INSIGHT_MODELS / MODEL_PACK_NAME / model_filename
+
 rec_handler = get_model(str(rec_model))
 rec_handler.prepare(ctx_id=0)
 
