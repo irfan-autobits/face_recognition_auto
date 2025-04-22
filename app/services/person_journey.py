@@ -17,6 +17,9 @@ def format_duration(seconds):
         parts.append(f"{secs}s")
     return " ".join(parts)
 
+def to_local(dt):
+    return dt.astimezone(pytz.timezone("Asia/Karachi"))
+
 def get_person_journey(detections):
     """
     Build a list of { camera_tag, entry_time, duration, start_time_raw }
@@ -28,13 +31,16 @@ def get_person_journey(detections):
     journey = []
     # Use the first detection’s timestamp, with microseconds stripped, and its tag.
     first_time = detections[0].timestamp.replace(microsecond=0)
+    local_tz = pytz.timezone("Asia/Karachi")
+    entry_time_local = first_time.astimezone(local_tz)
     current_segment = {
         'camera_tag':  detections[0].camera.tag, # Correctly take the first detection's tag.
-        'entry_time':  first_time.strftime('%Y-%m-%d %H:%M:%S'),
-        'start_time_raw': first_time,
-        'end_time':    first_time
+        # 'entry_time':  first_time.strftime('%Y-%m-%d %H:%M:%S'),
+        'entry_time':  entry_time_local.strftime('%Y-%m-%d %H:%M:%S'),
+        'start_time_raw': entry_time_local,
+        'end_time':    entry_time_local
     }
-    face_proc_logger.debug(f"[START] {first_time.isoformat()} tag={current_segment['camera_tag']}")
+    face_proc_logger.debug(f"[START] {entry_time_local.isoformat()} tag={current_segment['camera_tag']}")
 
     for det in detections[1:]:
         ts = det.timestamp.replace(microsecond=0)

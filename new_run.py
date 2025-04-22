@@ -38,7 +38,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 db.init_app(app)
 
 with app.app_context():
-    manage_table(drop=True)
+    manage_table(spec=True)
     # read your env‑provided dict exactly once, then forget cam_sources
     camera_service.bootstrap_from_env(cam_sources)
 

@@ -1,119 +1,181 @@
 # final-compre/app/models/model.py
+import uuid
 from datetime import datetime
-import threading
 import pytz
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
-import uuid
-from sqlalchemy import Sequence, Integer
-from sqlalchemy.orm import scoped_session, sessionmaker
-# db_session = scoped_session(sessionmaker())
+from sqlalchemy import Sequence, event
+
 db = SQLAlchemy()
 
 # Helper function to get current UTC time with timezone
 def get_current_time_in_timezone():
     return datetime.now(pytz.utc)
-    
-class Face_recog_User(db.Model):
-    id        = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email     = db.Column(db.String(50), nullable=False)
-    password  = db.Column(db.String(50), nullable=False)
+
+class FaceRecogUser(db.Model):
+    __tablename__ = 'face_recog_user'
+    id       = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email    = db.Column(db.String(50), nullable=False)
+    password = db.Column(db.String(50), nullable=False)
 
     def __repr__(self):
         return f"<User {self.email}>"
+
 class Subject(db.Model):
     __tablename__ = 'subject'
-    id            = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    subject_name  = db.Column(db.String(100), nullable=False, unique=True)
-    added_date    = db.Column(db.DateTime(timezone=True), nullable=False,
-                              default=get_current_time_in_timezone)
-    age           = db.Column(db.Integer)
-    gender        = db.Column(db.String(10))
-    email         = db.Column(db.String(100))
-    phone         = db.Column(db.String(15))
-    aadhar        = db.Column(db.String(20))
+    id           = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    subject_name = db.Column(db.String(100), nullable=False, unique=True)
+    added_date   = db.Column(db.DateTime(timezone=True), nullable=False,
+                             default=get_current_time_in_timezone)
+    age          = db.Column(db.Integer)
+    gender       = db.Column(db.String(10))
+    email        = db.Column(db.String(100))
+    phone        = db.Column(db.String(15))
+    aadhar       = db.Column(db.String(20))
 
-    images        = db.relationship('Img',       backref='subject',
-                                    lazy='dynamic', cascade='all, delete-orphan')
-    embeddings    = db.relationship('Embedding', backref='subject',
-                                    lazy='dynamic', cascade='all, delete-orphan')
-    detections    = db.relationship('Detection', back_populates='subject',
-                                    lazy='dynamic', cascade='all, delete-orphan')
+    # one-to-many without cascade; passive_deletes ensures SET NULL works
+    detections   = db.relationship(
+        'Detection', back_populates='subject', lazy='dynamic', passive_deletes=True
+    )
+
+    images       = db.relationship(
+        'Img', backref='subject', lazy='dynamic', cascade='all, delete-orphan'
+    )
+    embeddings   = db.relationship(
+        'Embedding', backref='subject', lazy='dynamic', cascade='all, delete-orphan'
+    )
 
     def __repr__(self):
         return f"<Subject {self.subject_name} ({self.id})>"
-
-class Img(db.Model):
-    __tablename__ = 'img'
-    id         = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    image_url  = db.Column(db.String(255), nullable=False)
-    subject_id = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'),
-                           nullable=False)
-
-    embeddings = db.relationship('Embedding', backref='image',
-                                 lazy='dynamic', cascade='all, delete-orphan')
-
-    def __repr__(self):
-        return f"<Img {self.id}>"
 
 class Camera(db.Model):
     __tablename__ = 'camera'
     id           = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     camera_name  = db.Column(db.String(50), nullable=False, unique=True, index=True)
-    camera_url   = db.Column(db.Text,       nullable=False)
+    camera_url   = db.Column(db.Text, nullable=False)
     tag          = db.Column(db.String(50), nullable=False)
 
-    detections   = db.relationship('Detection', back_populates='camera',
-                                   lazy='dynamic', cascade='all, delete-orphan')
+    detections   = db.relationship(
+        'Detection', back_populates='camera', lazy='dynamic', passive_deletes=True
+    )
 
     def __repr__(self):
         return f"<Camera {self.camera_name} ({self.tag})>"
 
+class Img(db.Model):
+    __tablename__ = 'img'
+    id         = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    image_url  = db.Column(db.String(255), nullable=False)
+    subject_id = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'), nullable=False)
+
+    embeddings = db.relationship(
+        'Embedding', backref='image', lazy='dynamic', cascade='all, delete-orphan'
+    )
+
+    def __repr__(self):
+        return f"<Img {self.id}>"
+
 class Embedding(db.Model):
     __tablename__ = 'embedding'
-    id          = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    embedding   = db.Column(ARRAY(db.Float), nullable=False)
-    calculator  = db.Column(db.String(255), nullable=False)
-    subject_id  = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'),
-                            nullable=False)
-    img_id      = db.Column(UUID(as_uuid=True), db.ForeignKey('img.id'),
-                            nullable=False)
+    id         = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    embedding  = db.Column(ARRAY(db.Float), nullable=False)
+    calculator = db.Column(db.String(255), nullable=False)
+    subject_id = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'), nullable=False)
+    img_id     = db.Column(UUID(as_uuid=True), db.ForeignKey('img.id'), nullable=False)
 
     def __repr__(self):
         return f"<Embedding {self.id}>"
 
 class Detection(db.Model):
     __tablename__ = 'detection'
-    id          = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # rec_no will get its value from a Postgres sequence:
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # auto-increment rec_no
     rec_no_seq = Sequence('detection_rec_no_seq', metadata=db.metadata)
-    rec_no = db.Column(Integer,
-                       rec_no_seq,
-                       server_default=rec_no_seq.next_value(),
-                       unique=True,
-                       nullable=False)    
-    subject_id  = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'),
-                            nullable=True)
-    subject     = db.relationship('Subject', back_populates='detections')
+    rec_no     = db.Column(
+        db.Integer, rec_no_seq, server_default=rec_no_seq.next_value(),
+        unique=True, nullable=False
+    )
 
-    camera_id   = db.Column(UUID(as_uuid=True), db.ForeignKey('camera.id'),
-                            nullable=False)
-    camera      = db.relationship('Camera', back_populates='detections')
+    # — Subject link; on delete, set FK null —
+    subject_id = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('subject.id', ondelete='SET NULL'),
+        nullable=True
+    )
+    subject    = db.relationship('Subject', back_populates='detections', passive_deletes=True)
 
-    det_score   = db.Column(db.Float, nullable=False)
-    distance    = db.Column(db.Float, nullable=False)
-    timestamp   = db.Column(db.DateTime(timezone=True),
-                            default=get_current_time_in_timezone,
-                            index=True)
-    det_face    = db.Column(db.Text, nullable=False)
+    # — Camera link; on delete, set FK null —
+    camera_id  = db.Column(
+        UUID(as_uuid=True),
+        db.ForeignKey('camera.id', ondelete='SET NULL'),
+        nullable=True
+    )
+    camera     = db.relationship('Camera', back_populates='detections', passive_deletes=True)
+
+    # snapshot columns
+    legacy_subject_name = db.Column(db.String(100), nullable=False)
+    legacy_camera_name  = db.Column(db.String(50), nullable=False)
+    legacy_camera_tag   = db.Column(db.String(50), nullable=False)
+
+    det_score = db.Column(db.Float, nullable=False)
+    distance  = db.Column(db.Float, nullable=False)
+    timestamp = db.Column(
+        db.DateTime(timezone=True), default=get_current_time_in_timezone, index=True
+    )
+    det_face  = db.Column(db.Text, nullable=False)
+
+    def __init__(self, *, subject=None, camera, **kwargs):
+        # snapshot into legacy_* before FKs applied
+        kwargs.setdefault('legacy_subject_name', subject.subject_name if subject else 'Unknown')
+        kwargs.setdefault('legacy_camera_name',  camera.camera_name)
+        kwargs.setdefault('legacy_camera_tag',   camera.tag)
+        kwargs.setdefault('subject_id',          subject.id if subject else None)
+        kwargs.setdefault('camera_id',           camera.id)
+        super().__init__(**kwargs)
+
+    @property
+    def subject_name(self):
+        if self.subject:
+            return self.subject.subject_name
+        if self.legacy_subject_name == "Unknown":
+            return "Unknown"
+        return f"unlink_{self.legacy_subject_name}"
+
+    @property
+    def camera_name(self):
+        return self.camera.camera_name if self.camera else f"unlink_{self.legacy_camera_name}"
 
     @property
     def camera_tag(self):
-        return self.camera.tag
+        return self.camera.tag if self.camera else f"unlink_{self.legacy_camera_tag}"
 
     def __repr__(self):
-        return (f"<Detection {self.id}: "
-                f"{self.subject.subject_name} @ {self.camera.camera_name}>")
+        return f"<Detection {self.rec_no}: {self.subject_name} @ {self.camera_name}>"
+
+# Event listeners to snapshot before deletes
+@event.listens_for(Subject, 'before_delete')
+def _snapshot_subject(mapper, connection, target):
+    connection.execute(
+        Detection.__table__.update()
+        .where(Detection.subject_id == target.id)
+        .values(
+            legacy_subject_name=target.subject_name,
+            subject_id=None
+        )
+    )
+
+@event.listens_for(Camera, 'before_delete')
+def _snapshot_camera(mapper, connection, target):
+    connection.execute(
+        Detection.__table__.update()
+        .where(Detection.camera_id == target.id)
+        .values(
+            legacy_camera_name=target.camera_name,
+            legacy_camera_tag=target.tag,
+            camera_id=None
+        )
+    )
 
 # class Location(db.Model):
 #     __tablename__ = 'location'

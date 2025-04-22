@@ -1,11 +1,11 @@
 # app/routes/route.py
 import pandas as pd
-from flask import Blueprint, jsonify, render_template, request
-from flask import current_app 
+from flask import Blueprint, jsonify, render_template, request, current_app
 from app.services.user_management import sign_up_user, log_in_user
-from app.services.camera_manager import camera_service, recognition_table
+from app.services.camera_manager import camera_service
+from app.services.subject_manager import subject_service
 from app.services.person_journey import get_movement_history
-from app.services.subject_manager import add_subject, list_subject, delete_subject, add_image_to_subject, delete_subject_img
+from app.services.table_stats import giving_system_stats, giving_detection_stats, recognition_table
 # from app.services.infrastructure_layout import add_infra_location, remove_location, list_infra_locations
 from flask_socketio import SocketIO
 from flask import send_from_directory, abort
@@ -13,7 +13,6 @@ import os
 from config.paths import FACE_DIR, SUBJECT_IMG_DIR
 import config.state as state  # Ensure you're updating the module variable
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
-from flask import request, jsonify, current_app
 from werkzeug.utils import secure_filename
 
 # Blueprint for routes
@@ -190,107 +189,103 @@ def get_movement(person_name):
 # ─── subject management ─────────────────────────────────────────────────
 @bp.route('/api/subject_list', methods=['GET'])
 def subject_list():
-    print("on list sub")
-    response, status = list_subject()
-    return response, status
+    resp, status = subject_service.list_subjects()
+    return jsonify(resp), status
 
 @bp.route('/api/add_sub', methods=['POST'])
 def add_sub():
     """
-    API endpoint to add subjects with metadata from form or CSV.
-    for single mode it can take multiple img for single subject 
-    for csv mode it can take multiple subjects , but one img per subject extra img can be addded separately
+    Add subjects via CSV or single form, using standardized processing
     """
-
-    # Bulk CSV mode
     if 'csv' in request.files:
+        return _handle_csv_upload()
+    return _handle_single_upload()
+
+def _handle_csv_upload():
+    try:
         csv_file = request.files['csv']
         df = pd.read_csv(csv_file)
         uploaded_files = {f.filename: f for f in request.files.getlist('file')}
-
-        added_subjects = []
+        results = []
 
         for _, row in df.iterrows():
-            subject_name = row.get('subject_name')
-            file_name = row.get('file_name')
-            age = row.get('Age')
-            gender = row.get('Gender')
-            email = row.get('Email')
-            phone = row.get('Phone')
-            aadhar = row.get('Aadhar')
+            result = _process_subject_row(row, uploaded_files)
+            results.append(result)
 
-            file = uploaded_files.get(file_name)
-            if not file:
-                continue  # Skip if no matching image was uploaded
+        return jsonify({'results': results}), 207
 
-            filename = secure_filename(file.filename)
-            img_path = str(SUBJECT_IMG_DIR / filename)
-            os.makedirs(os.path.dirname(img_path), exist_ok=True)
-            file.save(img_path)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-            response, status = add_subject(subject_name, img_path, age, gender, email, phone, aadhar)
-            if status == 200:
-                added_subjects.append(response.get('message', subject_name))
+def _handle_single_upload():
+    try:
+        file_obj = request.files.get('file')
+        name = request.form.get('subject_name')
+        
+        if not file_obj or not name:
+            return jsonify({"error": "File and subject name required"}), 400
 
-        return jsonify({'message': 'Subjects added via CSV', 'subjects': added_subjects}), 200
+        meta = {k.lower(): v for k,v in request.form.items() if k != 'subject_name'}
+        resp, status = subject_service.add_subject(
+            subject_name=name,
+            file_obj=file_obj,
+            **meta
+        )
+        return jsonify(resp), status
 
-    # Single subject form mode
-    if 'file' not in request.files:
-        return jsonify({'error': 'No image file provided'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    files = request.files.getlist('file')
-    subject_name = request.form.get('subject_name')
-    age = request.form.get('Age')
-    gender = request.form.get('Gender')
-    email = request.form.get('Email')
-    phone = request.form.get('Phone')
-    aadhar = request.form.get('Aadhar')
+def _process_subject_row(row, uploaded_files):
+    name = row.get('subject_name')
+    fname = row.get('file_name')
+    file = uploaded_files.get(fname)
+    
+    if not file:
+        return {
+            'subject': name,
+            'status': 'error',
+            'message': f"Missing file '{fname}'"
+        }
 
-    if not subject_name:
-        return jsonify({'error': 'Subject name is required'}), 400
-
-    added_subjects = []
-
-    for file in files:
-        filename = secure_filename(file.filename)
-        img_path = str(SUBJECT_IMG_DIR / filename)
-        os.makedirs(os.path.dirname(img_path), exist_ok=True)
-        file.save(img_path)
-
-        response, status = add_subject(subject_name, img_path, age, gender, email, phone, aadhar)
-        if status == 200:
-            added_subjects.append(response.get('message', subject_name))
-
-    return jsonify({'message': 'Subjects added', 'subjects': added_subjects}), 200
-
-@bp.route('/api/remove_sub/<subject_id>', methods=['DELETE'])
-def remove_sub(subject_id):
-    response, status = delete_subject(subject_id)
-    return response, status    
+    try:
+        meta = {k.lower(): row.get(k) for k in ['Age', 'Gender', 'Email', 'Phone', 'Aadhar']}
+        resp, status = subject_service.add_subject(name, file, **meta)
+        return {
+            'subject': name,
+            'status': 'success' if status == 200 else 'error',
+            'response': resp
+        }
+    except Exception as e:
+        return {
+            'subject': name,
+            'status': 'error',
+            'message': str(e)
+        }
 
 @bp.route('/api/add_subject_img/<subject_id>', methods=['POST'])
 def add_subject_img(subject_id):
-    """
-    API endpoint to add a new image to an existing subject.
-    Expects one file in request.files with key 'file'.
-    """
-    # Check if the file is provided in the request
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
+    f = request.files.get('file')
+    if not f:
+        return jsonify({"error": "No image file provided"}), 400
+    resp, status = subject_service.add_image(subject_id, f)
+    return jsonify(resp), status
 
-    file = request.files['file']
-    if not file.filename:
-        return jsonify({'error': 'No file selected'}), 400
-
-    # Call the service function to add the image
-    response, status = add_image_to_subject(subject_id, file)
-    return jsonify(response), status
+@bp.route('/api/remove_sub/<subject_id>', methods=['DELETE'])
+def remove_sub(subject_id):
+    resp, status = subject_service.delete_subject(subject_id)
+    return jsonify(resp), status
 
 @bp.route('/api/remove_subject_img/<img_id>', methods=['DELETE'])
 def remove_subject_img(img_id):
-    response, status = delete_subject_img(img_id)
-    return response, status  
+    resp, status = subject_service.delete_subject_img(img_id)
+    return jsonify(resp), status
 
+@bp.route('/api/regen_embeddings/<subject_id>', methods=['POST'])
+def regen_embeddings(subject_id):
+    model = request.json.get('model')  # optional override
+    resp, status = subject_service.regenerate_embeddings(subject_id, model_name=model)
+    return jsonify(resp), status
 
 # @bp.route('/api/location', methods=['POST'])
 # def add_location():
@@ -329,3 +324,14 @@ def remove_subject_img(img_id):
 #     """
 #     response, status = list_infra_locations()
 #     return response, status 
+
+# 
+@bp.route("/api/system_stats", methods=["GET"])
+def get_system_stats():
+    response, status = giving_system_stats()
+    return response, status      
+
+@bp.route('/api/detections_stats', methods=['GET'])
+def detection_stats():
+    response, status = giving_detection_stats()
+    return response, status      

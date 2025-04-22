@@ -1,12 +1,11 @@
 # app/services/camera_manager.py
 from datetime import datetime
 import time
-from flask import current_app
 from app.models.model import Camera, db
 from app.processors.videocapture import VideoStream
 from config.state import vs_lock, frame_lock
 from config.logger_config import cam_stat_logger
-
+# Removed duplicate _start_stream function, please use the method defined in CameraService.
 class CameraService:
     def __init__(self, frame_lock, vs_lock):
         # we no longer carry cam_sources or vs_list around in module globals
@@ -43,29 +42,46 @@ class CameraService:
         Add a new camera record and start its stream if responsive.
         Returns (response_dict, status_code).
         """
-        # Persist camera record
+        existing = Camera.query.filter_by(camera_name=name).first()
+        if existing:
+            # If it's in the DB but not yet streaming, start it:
+            if name not in self._vs_list:
+                if self._start_stream(name, existing.camera_url):
+                    cam_stat_logger.info(f"Camera '{name}' already exists and re-started")
+                    return {'message': f"Camera '{name}' already exists and re‑started"}, 200
+                else:
+                    cam_stat_logger.error(f"Camera '{name}'  in DB but failed to start")
+                    return {'error': f"Camera '{name}' in DB but failed to start"}, 400
+            # Already up and running:
+            cam_stat_logger.info(f"Camera '{name}' already exists and is running")
+            return {'message': f"Camera '{name}' already exists and is running"}, 200
+
+        # New camera path:
         new_cam = Camera(camera_name=name, camera_url=url, tag=tag)
         db.session.add(new_cam)
-
-        # Test & start
         if self._start_stream(name, url):
             db.session.commit()
-            cam_stat_logger.info(f"Added and started camera {name}")
-            return {'message': f"Camera {name} added and started"}, 200
+            cam_stat_logger.info(f"Camera '{name}' committed on DB and started")
+            return {'message': f"Camera '{name}' added and started"}, 201
         else:
             db.session.rollback()
-            return {'error': f"Camera {name} not responding"}, 400
+            cam_stat_logger.error(f"Failed to start newly added camera {name}")
+            return {'error': f"Camera '{name}' not responding"}, 400
 
     def start_camera(self, name):
         """Start an existing camera if not already running."""
         cam = Camera.query.filter_by(camera_name=name).first()
         if not cam:
+            cam_stat_logger.error(f"Camera {name} not found")
             return {'error': f"Camera {name} not found"}, 404        
         if name in self._vs_list:
+            cam_stat_logger.info(f"Camera {name} already started")
             return {'message': f"Camera {name} already started"}, 200
         if self._start_stream(name, cam.camera_url):
+            cam_stat_logger.info(f"Camera {name} started")
             return {'message': f"Camera {name} started"}, 200
         else:
+            cam_stat_logger.error(f"Camera {name} not responding")
             return {'error': f"Camera {name} not responding"}, 400
 
     def stop_camera(self, name):
@@ -82,6 +98,7 @@ class CameraService:
         """Remove camera record from DB and stop its stream."""
         cam = Camera.query.filter_by(camera_name=name).first()
         if not cam:
+            cam_stat_logger.error(f"Camera {name} not found in DB")
             return {'error': f"Camera {name} not found in DB"}, 404
         db.session.delete(cam)
         db.session.commit()
@@ -130,75 +147,3 @@ class CameraService:
 
 # Module‑level instance
 camera_service = CameraService(frame_lock, vs_lock)
-
-from sqlalchemy.orm import joinedload
-from app.models.model import Detection, Subject, Camera
-
-def recognition_table(page,limit, search, sort_field, sort_order, offset):
-    """API endpoint to list all Recognition"""
-    try:
-        with current_app.app_context():        
-            # ─── build base query (outerjoin so subj can be None) ─────────────
-            query = (
-                Detection
-                .query
-                .outerjoin(Subject)
-                .outerjoin(Camera)
-            )
-
-            # ─── full‐text search over person|camera|tag ───────────────────────
-            if search:
-                like_val = f"%{search}%"
-                query = query.filter(
-                    Subject.subject_name.ilike(like_val) |
-                    Camera.camera_name .ilike(like_val) |
-                    Camera.tag         .ilike(like_val)
-                )
-
-            # ─── apply sorting ─────────────────────────────────────────────────
-            sort_col = getattr(Detection, sort_field, Detection.timestamp)
-            sort_col = sort_col.asc() if sort_order == 'asc' else sort_col.desc()
-
-            # ─── fetch with joined‑load to avoid N+1 ──────────────────────────
-            detections = (
-                query
-                .options(
-                    joinedload(Detection.subject),
-                    joinedload(Detection.camera),
-                )
-                .order_by(sort_col)
-                .offset(offset)
-                .limit(limit)
-                .all()
-            )
-
-            # ─── serialize, defaulting to "Unknown" ────────────────────────────
-            body = []
-            for d in detections:
-                # if you created a dummy subject_name="__UNKNOWN__", hide it here:
-                name = (
-                    d.subject.subject_name
-                    if d.subject and d.subject.subject_name != None
-                    else "Unknown"
-                )
-                body.append({
-                    "id":          str(d.rec_no),
-                    "subject":     name,
-                    "camera_name": d.camera.camera_name,
-                    "camera_tag":  d.camera.tag,
-                    "det_score":   d.det_score,
-                    "distance":    d.distance,
-                    "timestamp":   d.timestamp.isoformat(),
-                    "det_face":    d.det_face,
-                })
-
-            return {
-                'detections': body,
-                'page':       page,
-                'limit':      limit
-            }, 200
-
-    except Exception as e:
-        db.session.rollback()
-        cam_stat_logger.error(f"Failed to list detections: {str(e)}")
-        return {'error': str(e)}, 500

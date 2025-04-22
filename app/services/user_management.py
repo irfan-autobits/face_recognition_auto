@@ -2,12 +2,12 @@
 import datetime
 from flask import current_app as app
 import jwt
-from app.models.model import Face_recog_User, db
+from app.models.model import FaceRecogUser, db
 from sqlalchemy.exc import SQLAlchemyError
               
 def sign_up_user(email, password):            
     print(f"while saving :: {email} pass :: {password}")
-    user = Face_recog_User(email=email, password=password)
+    user = FaceRecogUser(email=email, password=password)
     try:
         with app.app_context():
             db.session.add(user)
@@ -19,7 +19,7 @@ def sign_up_user(email, password):
     
 def log_in_user(email, password):
     print(f"while login :: {email} pass :: {password}")
-    user = Face_recog_User.query.filter_by(email=email, password=password).first()
+    user = FaceRecogUser.query.filter_by(email=email, password=password).first()
     if user:
         print(f"User {email} logged in successfully.")
         # Generate JWT token

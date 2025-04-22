@@ -84,21 +84,19 @@ class FaceDetectionProcessor:
                     face_url = f"http://localhost:5757/faces/{face_path}"
                     # Use the app context explicitly
                     with self.app.app_context():
-                        subj = Subject.query.filter_by(subject_name=subject).first()
+                        subj = Subject.query.filter_by(subject_name=subject).first()   # or None
                         cam  = Camera.query.filter_by(camera_name=cam_name).first()
-                        if not cam:
-                                det_logger.error(f"Couldn't find Camera({cam_name})")
-                        else :
-                            det = Detection(
-                                subject_id=subj.id if subj else None,
-                                camera_id=cam.id,
-                                det_score=probability * 100,
-                                distance=distance,
-                                timestamp=datetime.now(pytz.utc),
-                                det_face=face_url
-                            )
-                            self.db_session.add(det)
-                            self.db_session.commit()                            
+                        det = Detection(
+                            subject= subj,    # will snapshot subj.subject_name or "Unknown"
+                            camera = cam,     # will snapshot cam.camera_name/tag
+                            det_score = probability * 100,
+                            distance  = distance,
+                            det_face  = face_url
+                            # timestamp auto‑set
+                        )
+                        self.db_session.add(det)
+                        self.db_session.commit()
+                           
                         # # Commit every 10 detections
                         # if len(self.db_session.new) % 10 == 0:
                         #     self.db_session.commit()
