@@ -12,7 +12,6 @@ import torch
 # import nvtx
 from config.paths import cam_sources
 from config.state import frame_lock, vs_lock
-import config.state as state
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 from config.config import Config
 from app.routes.route import bp as video_feed_bp
@@ -38,7 +37,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 db.init_app(app)
 
 with app.app_context():
-    manage_table(spec=True)
+    manage_table(drop=True)
     # read your env‑provided dict exactly once, then forget cam_sources
     camera_service.bootstrap_from_env(cam_sources)
 
@@ -70,8 +69,8 @@ def emit_frame(cam_name, frame):
     socketio.start_background_task(_emit, cam_name, frame)
 
 def _emit(cam_name, frame):
-    with state.active_camera_lock:
-        if state.active_camera != cam_name: return
+    active_feed = camera_service.get_active_feed()
+    if active_feed != cam_name: return
     _, buf = cv2.imencode('.jpg', frame)
     b64   = base64.b64encode(buf).decode('utf-8')
     socketio.emit('frame', {'camera_name': cam_name, 'image': b64})

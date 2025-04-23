@@ -5,7 +5,9 @@ import pytz
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy import Sequence, event
-
+import uuid
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, DateTime, ForeignKey
 db = SQLAlchemy()
 
 # Helper function to get current UTC time with timezone
@@ -20,6 +22,36 @@ class FaceRecogUser(db.Model):
 
     def __repr__(self):
         return f"<User {self.email}>"
+
+class Camera(db.Model):
+    __tablename__ = 'camera'
+    id           = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    camera_name  = db.Column(db.String(50), nullable=False, unique=True, index=True)
+    camera_url   = db.Column(db.Text, nullable=False)
+    tag          = db.Column(db.String(50), nullable=False)
+
+    detections   = db.relationship(
+        'Detection', back_populates='camera', lazy='dynamic', passive_deletes=True
+    )
+    camera_event = db.relationship(
+        'CameraEvent', backref='camera', lazy='dynamic', cascade='all, delete-orphan'
+    )
+    def __repr__(self):
+        return f"<Camera {self.camera_name} ({self.tag})>"
+
+class CameraEvent(db.Model):
+    __tablename__ = 'camera_event'
+    id         = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # — Camera link; on delete, set FK null —
+    camera_id  = db.Column(UUID(as_uuid=True), db.ForeignKey('camera.id'), nullable=True)
+
+    event_type = db.Column(db.String(10), nullable=False)  # 'camera' or 'feed'
+    action     = db.Column(db.String(10), nullable=False)  # 'start' or 'stop'
+    timestamp  = db.Column(
+        db.DateTime(timezone=True), default=get_current_time_in_timezone, index=True
+    )
+    def __repr__(self):
+        return f"<CameraEvent {self.event_type} {self.action} ({self.timestamp})"
 
 class Subject(db.Model):
     __tablename__ = 'subject'
@@ -47,20 +79,6 @@ class Subject(db.Model):
 
     def __repr__(self):
         return f"<Subject {self.subject_name} ({self.id})>"
-
-class Camera(db.Model):
-    __tablename__ = 'camera'
-    id           = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    camera_name  = db.Column(db.String(50), nullable=False, unique=True, index=True)
-    camera_url   = db.Column(db.Text, nullable=False)
-    tag          = db.Column(db.String(50), nullable=False)
-
-    detections   = db.relationship(
-        'Detection', back_populates='camera', lazy='dynamic', passive_deletes=True
-    )
-
-    def __repr__(self):
-        return f"<Camera {self.camera_name} ({self.tag})>"
 
 class Img(db.Model):
     __tablename__ = 'img'

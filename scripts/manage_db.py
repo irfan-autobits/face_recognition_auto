@@ -21,7 +21,8 @@ def manage_table(purge=False, drop=False, spec=False):
                 Detection.__table__.drop(db.engine)
             db.session.commit()
             db.create_all()
-            print("Dropped Camera and FaceRecogUser but not Detection and Embedding.")
+            # print("Dropped Camera and FaceRecogUser but not Detection and Embedding.")
+            print("Dropped FaceRecogUser but not Detection and Embedding.")
         elif drop:
             db.drop_all()
             db.create_all()

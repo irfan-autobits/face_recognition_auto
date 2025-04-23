@@ -1,17 +1,23 @@
 # app/services/camera_manager.py
-from datetime import datetime
 import time
-from app.models.model import Camera, db
-from app.processors.videocapture import VideoStream
-from config.state import vs_lock, frame_lock
+import pytz
+from sqlalchemy import and_
+from datetime import datetime, timedelta
+from app.models.model import Camera, CameraEvent, db
+from app.services.videocapture import VideoStream
+from config.state import vs_lock, frame_lock, feed_lock
 from config.logger_config import cam_stat_logger
+from sqlalchemy.exc import IntegrityError
+
 # Removed duplicate _start_stream function, please use the method defined in CameraService.
 class CameraService:
-    def __init__(self, frame_lock, vs_lock):
+    def __init__(self, frame_lock, vs_lock, feed_lock):
         # we no longer carry cam_sources or vs_list around in module globals
         self.frame_lock = frame_lock
+        self.feed_lock  = feed_lock
         self.vs_lock    = vs_lock
         self._vs_list   = {}     # name → VideoStream
+        self.active_feed = None        
         # the DB is the canonical source of truth for camera configs
 
     @property
@@ -38,60 +44,62 @@ class CameraService:
         return False
 
     def add_camera(self, name, url, tag):
-        """
-        Add a new camera record and start its stream if responsive.
-        Returns (response_dict, status_code).
-        """
-        existing = Camera.query.filter_by(camera_name=name).first()
-        if existing:
-            # If it's in the DB but not yet streaming, start it:
-            if name not in self._vs_list:
-                if self._start_stream(name, existing.camera_url):
-                    cam_stat_logger.info(f"Camera '{name}' already exists and re-started")
-                    return {'message': f"Camera '{name}' already exists and re‑started"}, 200
-                else:
-                    cam_stat_logger.error(f"Camera '{name}'  in DB but failed to start")
-                    return {'error': f"Camera '{name}' in DB but failed to start"}, 400
-            # Already up and running:
-            cam_stat_logger.info(f"Camera '{name}' already exists and is running")
-            return {'message': f"Camera '{name}' already exists and is running"}, 200
-
-        # New camera path:
+        """Try to insert a new Camera row, then start it.   
+        DB enforces uniqueness, we just catch any dup‐key error."""
         new_cam = Camera(camera_name=name, camera_url=url, tag=tag)
         db.session.add(new_cam)
-        if self._start_stream(name, url):
+        try:
             db.session.commit()
-            cam_stat_logger.info(f"Camera '{name}' committed on DB and started")
-            return {'message': f"Camera '{name}' added and started"}, 201
-        else:
+        except IntegrityError:
             db.session.rollback()
-            cam_stat_logger.error(f"Failed to start newly added camera {name}")
-            return {'error': f"Camera '{name}' not responding"}, 400
+            # we know the only duplicate‐key here is camera_name, so:
+            return {'error': f"Camera '{name}' already exists"}, 409
+
+        # if we got here, the row is in the DB—now start the stream & log the event
+        resp, status = self.start_camera(name)
+        # if start_camera fails you might even want to delete the row … up to you
+        return resp, status
 
     def start_camera(self, name):
         """Start an existing camera if not already running."""
         cam = Camera.query.filter_by(camera_name=name).first()
         if not cam:
-            cam_stat_logger.error(f"Camera {name} not found")
-            return {'error': f"Camera {name} not found"}, 404        
+            cam_stat_logger.error(f"Camera {name} not found on camera service")
+            return {'error': f"Camera {name} not found on camera service"}, 404        
         if name in self._vs_list:
             cam_stat_logger.info(f"Camera {name} already started")
             return {'message': f"Camera {name} already started"}, 200
-        if self._start_stream(name, cam.camera_url):
-            cam_stat_logger.info(f"Camera {name} started")
-            return {'message': f"Camera {name} started"}, 200
-        else:
+        if not self._start_stream(name, cam.camera_url):
             cam_stat_logger.error(f"Camera {name} not responding")
             return {'error': f"Camera {name} not responding"}, 400
+        evt = CameraEvent(camera_id=cam.id,
+                        event_type='camera',
+                        action='start')
+        db.session.add(evt)
+        db.session.commit()            
+        cam_stat_logger.info(f"Camera {name} started")
+        return {'message': f"Camera {name} started"}, 200
 
     def stop_camera(self, name):
         """Stop a running camera stream."""
+        cam = Camera.query.filter_by(camera_name=name).first()
+        if not cam:
+            cam_stat_logger.error(f"Camera {name} not found")
+            return {'error': f"Camera {name} not found"}, 404          
         if name not in self._vs_list:
             return {'error': f"Camera {name} is not running"}, 404
         with self.vs_lock:
             self._vs_list[name].stop()
             del self._vs_list[name]
+        evt = CameraEvent(camera_id=cam.id,
+                          event_type='camera',
+                          action='stop')
+        db.session.add(evt)
+        db.session.commit()            
         cam_stat_logger.info(f"Stopped camera {name}")
+        #  ── auto‐tear‐down any live feed on that camera ──
+        if self.active_feed == name:
+            self.stop_feed()        
         return {'message': f"Camera {name} stopped"}, 200
 
     def remove_camera(self, name):
@@ -105,6 +113,43 @@ class CameraService:
         resp, status = self.stop_camera(name)
         cam_stat_logger.info(f"Removed camera {name}")
         return resp, status
+
+    def start_feed(self, camera_name):
+        # 1) ensure the camera is actually streaming
+        if camera_name not in self._vs_list:
+            cam_stat_logger.error(f"Cannot start feed: camera '{camera_name}' is not running")
+            return {'error': f"Camera '{camera_name}' is not running"}, 400
+
+        with self.feed_lock:
+            self.active_feed = camera_name
+
+        cam = Camera.query.filter_by(camera_name=camera_name).first()
+        evt = CameraEvent(camera_id=cam.id, event_type='feed', action='start')
+        db.session.add(evt)
+        db.session.commit()
+
+        cam_stat_logger.info(f"Feed started for camera '{camera_name}'")
+        return {'message': f"Feed started for '{camera_name}'"}, 200
+
+    def stop_feed(self):
+        with self.feed_lock:
+            camera_name = self.active_feed
+            self.active_feed = None
+
+        if not camera_name:
+            return {'error': 'No feed is currently active'}, 400
+
+        cam = Camera.query.filter_by(camera_name=camera_name).first()
+        evt = CameraEvent(camera_id=cam.id, event_type='feed', action='stop')
+        db.session.add(evt)
+        db.session.commit()
+
+        cam_stat_logger.info(f"Feed stopped for camera '{camera_name}'")
+        return {'message': f"Feed stopped for '{camera_name}'"}, 200
+
+    def get_active_feed(self):
+        with self.feed_lock:
+            return self.active_feed
 
     def start_all(self):
         """Start all configured cameras."""
@@ -144,6 +189,87 @@ class CameraService:
                 'status': cam.camera_name in self._vs_list
             })
         return {'cameras': camera_list}, 200
+    def camera_timeline_status(self):
+        """
+        Returns JSON:
+        {
+        "camData": [
+            { camera, activePeriods: [{start,end}], feeds: [{start,end}] },
+            …
+        ],
+        "range": { min, max }
+        }
+        """
+        now = datetime.now(pytz.utc)
+        window_start = now - timedelta(days=30)
 
+        # fetch all events in window
+        events = (
+            CameraEvent.query
+            .filter(and_(CameraEvent.timestamp >= window_start,
+                        CameraEvent.timestamp <= now))
+            .order_by(CameraEvent.camera_id, CameraEvent.timestamp)
+            .all()
+        )
+
+        # gather an entry per camera
+        cam_map = {}
+        for cam in Camera.query.all():
+            cam_map[str(cam.id)] = {
+                "camera": cam.camera_name,
+                "activePeriods": [], 
+                "feeds": []
+            }
+
+        # helper to consume paired start→stop into periods
+        def build_periods(evts, etype):
+            periods, current = [], None
+            for e in evts:
+                if e.action == 'start':
+                    current = e.timestamp
+                elif e.action == 'stop' and current:
+                    periods.append({"start": current.isoformat(),
+                                    "end":   e.timestamp.isoformat()})
+                    current = None
+            # if still open-ended
+            if current:
+                periods.append({"start": current.isoformat(),
+                                "end":   now.isoformat()})
+            return periods
+
+        # group events by camera
+        by_cam = {}
+        for e in events:
+            cid = str(e.camera_id)
+            by_cam.setdefault(cid, []).append(e)
+
+        overall_min, overall_max = None, None
+
+        for cid, evts in by_cam.items():
+            # split camera-type vs feed-type
+            cam_evts  = [e for e in evts if e.event_type == 'camera']
+            feed_evts = [e for e in evts if e.event_type == 'feed']
+
+            ap = build_periods(cam_evts, 'camera')
+            fd = build_periods(feed_evts, 'feed')
+
+            cam_map[cid]["activePeriods"] = ap
+            cam_map[cid]["feeds"]         = fd
+
+            # update overall range
+            for seg in ap + fd:
+                s = datetime.fromisoformat(seg["start"])
+                e = datetime.fromisoformat(seg["end"])                  
+                overall_min = s if overall_min is None or s < overall_min else overall_min
+                overall_max = e if overall_max is None or e > overall_max else overall_max
+
+        return {
+            "camData": list(cam_map.values()),
+            "range": {
+                "min": overall_min.isoformat() if overall_min else window_start.isoformat(),
+                "max": overall_max.isoformat() if overall_max else now.isoformat()
+            }
+        }, 200
+        
 # Module‑level instance
-camera_service = CameraService(frame_lock, vs_lock)
+camera_service = CameraService(frame_lock, vs_lock, feed_lock)

@@ -2,8 +2,10 @@ from sqlalchemy.orm import joinedload
 from flask import jsonify, current_app
 from config.logger_config import cam_stat_logger, face_proc_logger
 from config.paths import MODEL_PACK_NAME
-from sqlalchemy import func, distinct
+from sqlalchemy import func, distinct, literal
 from app.models.model import db, Detection, Subject, Camera, Img, Embedding
+from datetime import datetime, timedelta
+from collections import defaultdict
 
 def giving_system_stats():
     try:
@@ -49,23 +51,39 @@ def giving_system_stats():
 
 def giving_detection_stats():
     try:
-        # 1) Day‑wise totals
-        day_rows = (
-            db.session
-            .query(
+        # Step 1: Date range: last 30 days
+        end_date = datetime.today().date()
+        start_date = end_date - timedelta(days=29)
+        date_window = [start_date + timedelta(days=i) for i in range(30)]
+
+        # Step 2: Get actual counts from DB
+        results = (
+            db.session.query(
                 func.date(Detection.timestamp).label("date"),
                 func.count(Detection.id).label("count")
             )
+            .filter(func.date(Detection.timestamp) >= start_date)
             .group_by("date")
             .order_by("date")
             .all()
         )
+
+        # Step 3: Convert query results into a dict
+        counts_by_date = {row.date: row.count for row in results}
+
+        # Step 4: Merge
         day_stats = []
-        for row in day_rows:
-            day_stats.append({"date": row.date.isoformat(), "count": row.count} )
-            # face_proc_logger.info(f"day_stats: {row.date.isoformat()} - {row.count}")
+        for d in date_window:
+            day_stats.append({
+                "date": d.isoformat(),
+                "count": counts_by_date.get(d, 0)
+            })
+            # face_proc_logger.info(f"day_stats: {row} - {counts_by_cam.get(row,0)}")
 
         # 2) Camera‑wise totals
+        cams = Camera.query.all()
+        cam_window = [cam.camera_name for cam in cams]
+
         cam_rows = (
             db.session
             .query(
@@ -76,26 +94,31 @@ def giving_detection_stats():
             .group_by(Camera.camera_name)
             .all()
         )
-        cam_stats = []
-        for row in cam_rows:
-            cam_stats.append({"camera": row.camera, "count": row.count})
-            # face_proc_logger.info(f"cam_stats: {row.camera} - {row.count}")
+        counts_by_cam = {row.camera: row.count for row in cam_rows}
 
-        # 3) Subject‑wise totals
+        cam_stats = []
+        for row in cam_window:
+            cam_stats.append({"camera": row, "count": counts_by_cam.get(row,0)})
+            # face_proc_logger.info(f"cam_stats: {row} - {counts_by_cam.get(row,0)}")
+
+        # 3) Subject-wise totals, including “Unknown” bucket
         sub_rows = (
             db.session
             .query(
-                Subject.subject_name.label("subject"),
-                func.count(Detection.id).label("count")
+                func.coalesce(Subject.subject_name, literal('Unknown')).label('subject'),
+                func.count(Detection.id).label('count')
             )
-            .join(Detection, Detection.subject_id == Subject.id)
-            .group_by(Subject.subject_name)
+            .select_from(Detection)                       # ← start from detections
+            .outerjoin(Subject, Detection.subject_id == Subject.id)
+            .group_by('subject')                          # ← group by the alias  
             .all()
         )
-        sub_stats = []
-        for row in sub_rows:
-            sub_stats.append({"subject": row.subject, "count": row.count})
-            # face_proc_logger.info(f"Subject_stats: {row.subject} - {row.count}")
+
+        # Turn it into a simple list/dict for your UI:
+        sub_stats = [
+            {'subject': row.subject, 'count': row.count}
+            for row in sub_rows
+        ]
             
         return jsonify({
             "day_stats": day_stats,

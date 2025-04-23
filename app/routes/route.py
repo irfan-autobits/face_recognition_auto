@@ -121,22 +121,22 @@ def List_cam():
     response, status = camera_service.list_cameras()
     return response, status
 
+@bp.route('/camera_timeline', methods=['GET'])
+def camera_timeline():
+    """Get camera timeline data"""
+    response, status = camera_service.camera_timeline_status()
+    return jsonify(response), status    
+
 @bp.route('/api/start_feed', methods=['POST'])
 def start_feed():
     data = request.get_json()
     camera_name = data.get('camera_name')    
-    with state.active_camera_lock:
-        state.active_camera = camera_name
-        print(f"activa camera is : {state.active_camera}")
-        cam_stat_logger.debug(f"activa camera is : {state.active_camera}")
+    camera_service.start_feed(camera_name)
     return {'message': f'Now emitting fDetectionrames for {camera_name}'}, 200
 
 @bp.route('/api/stop_feed', methods=['POST'])
 def stop_feed():
-    with state.active_camera_lock:
-        state.active_camera = None
-        print(f"activa camera is : {state.active_camera}")
-        cam_stat_logger.debug(f"activa camera is : {state.active_camera}")
+    camera_service.stop_feed()
     return {'message': f'Now emitting frames for None'}, 200
 
 # ─── serving table  ─────────────────────────────────────────────────
@@ -287,6 +287,17 @@ def regen_embeddings(subject_id):
     resp, status = subject_service.regenerate_embeddings(subject_id, model_name=model)
     return jsonify(resp), status
 
+# ─── system stats ─────────────────────────────────────────────────
+@bp.route("/api/system_stats", methods=["GET"])
+def get_system_stats():
+    response, status = giving_system_stats()
+    return response, status      
+
+@bp.route('/api/detections_stats', methods=['GET'])
+def detection_stats():
+    response, status = giving_detection_stats()
+    return response, status     
+ 
 # @bp.route('/api/location', methods=['POST'])
 # def add_location():
 #     """
@@ -325,13 +336,3 @@ def regen_embeddings(subject_id):
 #     response, status = list_infra_locations()
 #     return response, status 
 
-# 
-@bp.route("/api/system_stats", methods=["GET"])
-def get_system_stats():
-    response, status = giving_system_stats()
-    return response, status      
-
-@bp.route('/api/detections_stats', methods=['GET'])
-def detection_stats():
-    response, status = giving_detection_stats()
-    return response, status      
