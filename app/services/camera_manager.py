@@ -46,6 +46,8 @@ class CameraService:
     def add_camera(self, name, url, tag):
         """Try to insert a new Camera row, then start it.   
         DB enforces uniqueness, we just catch any dup‐key error."""
+        if not name or not url or not tag:
+            return {'error': 'name, url, and tag are required'}, 400        
         new_cam = Camera(camera_name=name, camera_url=url, tag=tag)
         db.session.add(new_cam)
         try:
@@ -108,14 +110,19 @@ class CameraService:
         if not cam:
             cam_stat_logger.error(f"Camera {name} not found in DB")
             return {'error': f"Camera {name} not found in DB"}, 404
+        resp, status = self.stop_camera(name)
         db.session.delete(cam)
         db.session.commit()
-        resp, status = self.stop_camera(name)
         cam_stat_logger.info(f"Removed camera {name}")
         return resp, status
 
     def start_feed(self, camera_name):
         # 1) ensure the camera is actually streaming
+        cam = Camera.query.filter_by(camera_name=camera_name).first()
+        if not cam:
+            cam_stat_logger.error(f"Camera {camera_name} not found in DB")
+            return {'error': f"Camera {camera_name} not found in DB"}, 404 
+               
         if camera_name not in self._vs_list:
             cam_stat_logger.error(f"Cannot start feed: camera '{camera_name}' is not running")
             return {'error': f"Camera '{camera_name}' is not running"}, 400
@@ -123,7 +130,6 @@ class CameraService:
         with self.feed_lock:
             self.active_feed = camera_name
 
-        cam = Camera.query.filter_by(camera_name=camera_name).first()
         evt = CameraEvent(camera_id=cam.id, event_type='feed', action='start')
         db.session.add(evt)
         db.session.commit()
@@ -134,12 +140,17 @@ class CameraService:
     def stop_feed(self):
         with self.feed_lock:
             camera_name = self.active_feed
+        cam = Camera.query.filter_by(camera_name=camera_name).first()
+        if not cam:
+            cam_stat_logger.error(f"Camera {camera_name} not found in DB")
+            return {'error': f"Camera {camera_name} not found in DB"}, 404 
+        
+        if self.active_feed is None:
+            return {'error': 'No feed is currently active'}, 400
+                       
+        with self.feed_lock:
             self.active_feed = None
 
-        if not camera_name:
-            return {'error': 'No feed is currently active'}, 400
-
-        cam = Camera.query.filter_by(camera_name=camera_name).first()
         evt = CameraEvent(camera_id=cam.id, event_type='feed', action='stop')
         db.session.add(evt)
         db.session.commit()
@@ -189,6 +200,7 @@ class CameraService:
                 'status': cam.camera_name in self._vs_list
             })
         return {'cameras': camera_list}, 200
+    
     def camera_timeline_status(self):
         """
         Returns JSON:

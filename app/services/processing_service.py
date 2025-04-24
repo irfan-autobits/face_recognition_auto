@@ -32,7 +32,7 @@ class ProcessingService:
         with self.app.app_context():
             start = time.time()
             out = self.face_processor.process_frame(frame, cam_name)
-            exec_time_logger.debug(f"Processed {cam_name} in {time.time()-start:.3f}s")
+            # exec_time_logger.debug(f"Processed {cam_name} in {time.time()-start:.3f}s")
             return out
 
     def _done(self, cam_name, future, callback):
