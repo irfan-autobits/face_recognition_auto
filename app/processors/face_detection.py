@@ -33,8 +33,6 @@ class FaceDetectionProcessor:
         # details = self.camera_sources.get(cam_name)
         # cam_tag = details.get("tag")
         self.call_counter += 1  # Increment call counter
-        cv2.putText(frame, "sample_text", (20, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
         # Memory cleanup
         if self.call_counter % self.max_call_counter == 0:
             process = psutil.Process()  # Get current process

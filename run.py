@@ -12,7 +12,7 @@ from config.paths import frame_lock, cam_sources, vs_list
 import config.paths as paths
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
 from config.config import Config
-from app.routes.route import bp as video_feed_bp, active_cameras
+from app.routes.other_route import bp as video_feed_bp, active_cameras
 from app.models.model import db, Detection, Camera
 from scripts.manage_db import manage_table, import_tab
 from app.processors.face_detection import FaceDetectionProcessor

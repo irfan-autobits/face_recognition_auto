@@ -43,6 +43,17 @@ class CameraService:
         cam_stat_logger.error(f"Camera {name} failed to respond after {attempts} attempts.")
         return False
 
+    def _log_event(self, cam: Camera, event_type: str, action: str):
+        """Single place to INSERT into camera_event."""
+        evt = CameraEvent(
+            camera_id=cam.id,
+            event_type=event_type,
+            action=action,
+            timestamp=datetime.now(pytz.UTC)
+        )
+        db.session.add(evt)
+        db.session.commit()
+
     def add_camera(self, name, url, tag):
         """Try to insert a new Camera row, then start it.   
         DB enforces uniqueness, we just catch any dup‐key error."""
@@ -74,11 +85,9 @@ class CameraService:
         if not self._start_stream(name, cam.camera_url):
             cam_stat_logger.error(f"Camera {name} not responding")
             return {'error': f"Camera {name} not responding"}, 400
-        evt = CameraEvent(camera_id=cam.id,
-                        event_type='camera',
-                        action='start')
-        db.session.add(evt)
-        db.session.commit()            
+
+        # only one lookup, then reuse `cam`
+        self._log_event(cam, 'camera', 'start')
         cam_stat_logger.info(f"Camera {name} started")
         return {'message': f"Camera {name} started"}, 200
 
@@ -90,14 +99,13 @@ class CameraService:
             return {'error': f"Camera {name} not found"}, 404          
         if name not in self._vs_list:
             return {'error': f"Camera {name} is not running"}, 404
+
+        # tear down stream…
         with self.vs_lock:
             self._vs_list[name].stop()
             del self._vs_list[name]
-        evt = CameraEvent(camera_id=cam.id,
-                          event_type='camera',
-                          action='stop')
-        db.session.add(evt)
-        db.session.commit()            
+
+        self._log_event(cam, 'camera', 'stop')
         cam_stat_logger.info(f"Stopped camera {name}")
         #  ── auto‐tear‐down any live feed on that camera ──
         if self.active_feed == name:
@@ -116,47 +124,40 @@ class CameraService:
         cam_stat_logger.info(f"Removed camera {name}")
         return resp, status
 
-    def start_feed(self, camera_name):
-        # 1) ensure the camera is actually streaming
-        cam = Camera.query.filter_by(camera_name=camera_name).first()
+    def start_feed(self, name):
+        cam = Camera.query.filter_by(camera_name=name).first()
         if not cam:
-            cam_stat_logger.error(f"Camera {camera_name} not found in DB")
-            return {'error': f"Camera {camera_name} not found in DB"}, 404 
+            cam_stat_logger.error(f"Camera {name} not found in DB")
+            return {'error': f"Camera {name} not found in DB"}, 404 
                
-        if camera_name not in self._vs_list:
-            cam_stat_logger.error(f"Cannot start feed: camera '{camera_name}' is not running")
-            return {'error': f"Camera '{camera_name}' is not running"}, 400
+        if name not in self._vs_list:
+            cam_stat_logger.error(f"Cannot start feed: camera '{name}' is not running")
+            return {'error': f"Camera '{name}' is not running"}, 400
 
+        old = self.active_feed
         with self.feed_lock:
-            self.active_feed = camera_name
+            # if switching feeds, auto-stop the old one
+            if old and old != name:
+                old_cam = Camera.query.filter_by(camera_name=old).first()
+                self._log_event(old_cam, 'feed', 'stop')
+            self.active_feed = name
 
-        evt = CameraEvent(camera_id=cam.id, event_type='feed', action='start')
-        db.session.add(evt)
-        db.session.commit()
-
-        cam_stat_logger.info(f"Feed started for camera '{camera_name}'")
-        return {'message': f"Feed started for '{camera_name}'"}, 200
+        self._log_event(cam, 'feed', 'start')
+        cam_stat_logger.info(f"Feed started for camera '{name}'")
+        return {'message': f"Feed started for '{name}'"}, 200
 
     def stop_feed(self):
         with self.feed_lock:
-            camera_name = self.active_feed
-        cam = Camera.query.filter_by(camera_name=camera_name).first()
-        if not cam:
-            cam_stat_logger.error(f"Camera {camera_name} not found in DB")
-            return {'error': f"Camera {camera_name} not found in DB"}, 404 
-        
-        if self.active_feed is None:
-            return {'error': 'No feed is currently active'}, 400
-                       
-        with self.feed_lock:
+            name = self.active_feed
             self.active_feed = None
 
-        evt = CameraEvent(camera_id=cam.id, event_type='feed', action='stop')
-        db.session.add(evt)
-        db.session.commit()
+        if not name:
+            return {'error': 'No feed was active'}, 400
 
-        cam_stat_logger.info(f"Feed stopped for camera '{camera_name}'")
-        return {'message': f"Feed stopped for '{camera_name}'"}, 200
+        cam = Camera.query.filter_by(camera_name=name).first()
+        self._log_event(cam, 'feed', 'stop')
+        cam_stat_logger.info(f"Feed stopped for camera '{name}'")
+        return {'message': f"Feed stopped for '{name}'"}, 200
 
     def get_active_feed(self):
         with self.feed_lock:
