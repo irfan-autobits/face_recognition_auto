@@ -5,7 +5,6 @@ from config.logger_config import cam_stat_logger , console_logger, exec_time_log
 
 # now we are importing bp
 from app.routes import bp 
-from app.extensions import socketio 
 # ─── camera management  ─────────────────────────────────────────────────
 @bp.route('/api/add_camera', methods=['POST'])
 def add_camera_route():
@@ -84,10 +83,7 @@ def start_feed():
     # DEBUG: did start_feed actually flip the switch?
     print("👈 start_feed response:", resp, status, flush=True)
     print("▶️ active_feed after start_feed:", camera_service.get_active_feed(), flush=True)
-
-    if status == 200:
-        socketio.emit('feed_started', {'camera_name': name})
-
+    
     return jsonify(resp), status
 
 @bp.route('/api/stop_feed', methods=['POST'])
@@ -96,8 +92,7 @@ def stop_feed():
     # grab the camera that was active before you clear it
     old = camera_service.get_active_feed()
     resp, status = camera_service.stop_feed()
-    if status == 200 and old:
-        socketio.emit('feed_stopped', {'camera_name': old})    
+
     return jsonify(resp), status
 
 @bp.route('/api/camera_list', methods=['GET'])

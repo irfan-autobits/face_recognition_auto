@@ -91,26 +91,37 @@ class CameraService:
         cam_stat_logger.info(f"Camera {name} started")
         return {'message': f"Camera {name} started"}, 200
 
-    def stop_camera(self, name):
-        """Stop a running camera stream."""
-        cam = Camera.query.filter_by(camera_name=name).first()
-        if not cam:
-            cam_stat_logger.error(f"Camera {name} not found")
-            return {'error': f"Camera {name} not found"}, 404          
-        if name not in self._vs_list:
-            return {'error': f"Camera {name} is not running"}, 404
-
-        # tear down stream…
+    def _core_stop_operations(self, name):
+        """Shared stop logic for both methods"""
+        vs = None
         with self.vs_lock:
-            self._vs_list[name].stop()
-            del self._vs_list[name]
+            vs = self._vs_list.pop(name, None)
+        if vs:
+            vs.stop()
+        return Camera.query.filter_by(camera_name=name).first()
 
+    def stop_camera(self, name):
+        cam = self._core_stop_operations(name)
+        if not cam:
+            return {'error': f"Camera {name} not found"}, 404
+        
         self._log_event(cam, 'camera', 'stop')
         cam_stat_logger.info(f"Stopped camera {name}")
-        #  ── auto‐tear‐down any live feed on that camera ──
+        
+        # Cleanup feed if it was using this camera
         if self.active_feed == name:
-            self.stop_feed()        
+            self.stop_feed()
+            
         return {'message': f"Camera {name} stopped"}, 200
+
+    def handle_unexpected_stop(self, name):
+        cam = self._core_stop_operations(name)
+        if cam:
+            self._log_event(cam, 'camera', 'stop')
+            # Critical feed cleanup added
+            if self.active_feed == name:
+                self.stop_feed()
+        cam_stat_logger.warning(f"Camera {name} auto-stopped after missed frames")
 
     def remove_camera(self, name):
         """Remove camera record from DB and stop its stream."""
@@ -201,7 +212,7 @@ class CameraService:
                 'status': cam.camera_name in self._vs_list
             })
         return {'cameras': camera_list}, 200
-    
+
     def camera_timeline_status(self):
         """
         Returns JSON:
