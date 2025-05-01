@@ -8,7 +8,7 @@ from app.services.videocapture import VideoStream
 from config.state import vs_lock, frame_lock, feed_lock
 from config.logger_config import cam_stat_logger
 from sqlalchemy.exc import IntegrityError
-
+from app.utils.time_utils import now_utc, to_utc_iso, parse_iso
 # Removed duplicate _start_stream function, please use the method defined in CameraService.
 class CameraService:
     def __init__(self, frame_lock, vs_lock, feed_lock):
@@ -49,7 +49,7 @@ class CameraService:
             camera_id=cam.id,
             event_type=event_type,
             action=action,
-            timestamp=datetime.now(pytz.UTC)
+            timestamp=now_utc()
         )
         db.session.add(evt)
         db.session.commit()
@@ -224,14 +224,17 @@ class CameraService:
         "range": { min, max }
         }
         """
-        now = datetime.now(pytz.utc)
+        # get current UTC time
+        now = now_utc()
         window_start = now - timedelta(days=30)
 
         # fetch all events in window
         events = (
             CameraEvent.query
-            .filter(and_(CameraEvent.timestamp >= window_start,
-                        CameraEvent.timestamp <= now))
+            .filter(and_(
+                CameraEvent.timestamp >= window_start,
+                CameraEvent.timestamp <= now
+            ))
             .order_by(CameraEvent.camera_id, CameraEvent.timestamp)
             .all()
         )
@@ -252,13 +255,18 @@ class CameraService:
                 if e.action == 'start':
                     current = e.timestamp
                 elif e.action == 'stop' and current:
-                    periods.append({"start": current.isoformat(),
-                                    "end":   e.timestamp.isoformat()})
+                    # serialize in strict UTC ISO
+                    periods.append({
+                        "start": to_utc_iso(current),
+                        "end":   to_utc_iso(e.timestamp)
+                    })
                     current = None
             # if still open-ended
             if current:
-                periods.append({"start": current.isoformat(),
-                                "end":   now.isoformat()})
+                periods.append({
+                    "start": to_utc_iso(current),
+                    "end":   to_utc_iso(now)
+                })
             return periods
 
         # group events by camera
@@ -282,16 +290,17 @@ class CameraService:
 
             # update overall range
             for seg in ap + fd:
-                s = datetime.fromisoformat(seg["start"])
-                e = datetime.fromisoformat(seg["end"])                  
+                # use parse_iso so we handle any trailing Z correctly
+                s = parse_iso(seg["start"])
+                e = parse_iso(seg["end"])        
                 overall_min = s if overall_min is None or s < overall_min else overall_min
                 overall_max = e if overall_max is None or e > overall_max else overall_max
 
         return {
             "camData": list(cam_map.values()),
             "range": {
-                "min": overall_min.isoformat() if overall_min else window_start.isoformat(),
-                "max": overall_max.isoformat() if overall_max else now.isoformat()
+                "min": to_utc_iso(overall_min) if overall_min else to_utc_iso(window_start),
+                "max": to_utc_iso(overall_max) if overall_max else to_utc_iso(now)
             }
         }, 200
         

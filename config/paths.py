@@ -2,7 +2,7 @@ import os
 import json
 from pathlib import Path
 from dotenv import load_dotenv
-from config.pyutil import get_env_bool
+from app.utils.pyutil import get_env_bool
 # Load environment variables
 CLEAN_VARS = [
     'IS_RECOGNIZE','IS_RM_REPORT','IS_GEN_REPORT',

@@ -50,14 +50,13 @@ def send_frame(processing):
 
 def emit_frame(cam_name, frame):
     # debug: call _emit synchronously instead of via start_background_task
-    # print(f"[DEBUG] emit_frame called for {cam_name}", flush=True)
     socketio.start_background_task(_emit, cam_name, frame)
 
 def _emit(cam_name, frame):
     active_feed = camera_service.get_active_feed()
-    print(f"[_emit] cam_name={cam_name}, active_feed={active_feed}", flush=True)
+    # print(f"[_emit] cam_name={cam_name}, active_feed={active_feed}", flush=True)
     if active_feed != cam_name:
-        print("[_emit] skipping, mismatch", flush=True)
+        # print("[_emit] skipping, mismatch", flush=True)
         return
 
     success, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
@@ -72,4 +71,4 @@ def _emit(cam_name, frame):
           'image': buf.tobytes()
         }
     )
-    print("[_emit] frame-bin emitted for", cam_name, flush=True)
+    # print("[_emit] frame-bin emitted for", cam_name, flush=True)

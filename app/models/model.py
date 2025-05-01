@@ -10,9 +10,9 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import Column, String, DateTime, ForeignKey
 db = SQLAlchemy()
 
-# Helper function to get current UTC time with timezone
-def get_current_time_in_timezone():
-    return datetime.now(pytz.utc)
+from app.utils.time_utils import now_utc
+
+# — no more get_current_time_in_timezone; use now_utc everywhere —
 
 class FaceRecogUser(db.Model):
     __tablename__ = 'face_recog_user'
@@ -48,7 +48,7 @@ class CameraEvent(db.Model):
     event_type = db.Column(db.String(10), nullable=False)  # 'camera' or 'feed'
     action     = db.Column(db.String(10), nullable=False)  # 'start' or 'stop'
     timestamp  = db.Column(
-        db.DateTime(timezone=True), default=get_current_time_in_timezone, index=True
+        db.DateTime(timezone=True), default=lambda: now_utc(), index=True
     )
     def __repr__(self):
         return f"<CameraEvent {self.event_type} {self.action} ({self.timestamp})"
@@ -57,8 +57,10 @@ class Subject(db.Model):
     __tablename__ = 'subject'
     id           = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     subject_name = db.Column(db.String(100), nullable=False, unique=True)
-    added_date   = db.Column(db.DateTime(timezone=True), nullable=False,
-                             default=get_current_time_in_timezone)
+    added_date   = db.Column(
+        db.DateTime(timezone=True), nullable=False,
+        default=lambda: now_utc()
+    )
     age          = db.Column(db.Integer)
     gender       = db.Column(db.String(10))
     email        = db.Column(db.String(100))
@@ -139,7 +141,7 @@ class Detection(db.Model):
     det_score = db.Column(db.Float, nullable=False)
     distance  = db.Column(db.Float, nullable=False)
     timestamp = db.Column(
-        db.DateTime(timezone=True), default=get_current_time_in_timezone, index=True
+        db.DateTime(timezone=True), default=lambda: now_utc(), index=True
     )
     det_face  = db.Column(db.Text, nullable=False)
 

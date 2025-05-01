@@ -1,3 +1,4 @@
+# app/services/table_stats.py
 from sqlalchemy.orm import joinedload
 from flask import jsonify, current_app
 from config.logger_config import cam_stat_logger, face_proc_logger
@@ -6,7 +7,7 @@ from sqlalchemy import func, distinct, literal
 from app.models.model import db, Detection, Subject, Camera, Img, Embedding
 from datetime import datetime, timedelta
 from collections import defaultdict
-
+from app.utils.time_utils import now_local, to_utc
 def giving_system_stats():
     try:
         model_used = MODEL_PACK_NAME
@@ -52,17 +53,22 @@ def giving_system_stats():
 def giving_detection_stats():
     try:
         # Step 1: Date range: last 30 days
-        end_date = datetime.today().date()
+        # Compute “today” in server’s local timezone:
+        end_date = now_local().date()        
         start_date = end_date - timedelta(days=29)
         date_window = [start_date + timedelta(days=i) for i in range(30)]
 
         # Step 2: Get actual counts from DB
+        # Filter using UTC-converted start/end
+        start_dt_utc = to_utc(datetime.combine(start_date, datetime.min.time()))
+        end_dt_utc   = to_utc(datetime.combine(end_date,   datetime.max.time()))
         results = (
             db.session.query(
                 func.date(Detection.timestamp).label("date"),
                 func.count(Detection.id).label("count")
             )
-            .filter(func.date(Detection.timestamp) >= start_date)
+            .filter(Detection.timestamp >= start_dt_utc)
+            .filter(Detection.timestamp <= end_dt_utc)
             .group_by("date")
             .order_by("date")
             .all()
@@ -119,7 +125,7 @@ def giving_detection_stats():
             {'subject': row.subject, 'count': row.count}
             for row in sub_rows
         ]
-            
+        print(f"day: {day_stats},cam: {cam_stats},sub: {sub_stats}")
         return jsonify({
             "day_stats": day_stats,
             "camera_stats": cam_stats,
@@ -170,6 +176,7 @@ def recognition_table(page,limit, search, sort_field, sort_order, offset):
             )
 
             # ─── serialize, defaulting to "Unknown" ────────────────────────────
+            from app.utils.time_utils import to_utc_iso
             body = []
             for d in detections:
                 body.append({
@@ -179,7 +186,7 @@ def recognition_table(page,limit, search, sort_field, sort_order, offset):
                     "camera_tag":  d.camera_tag or "Unknown",
                     "det_score":   d.det_score,
                     "distance":    d.distance,
-                    "timestamp":   d.timestamp.isoformat(),
+                    "timestamp":   to_utc_iso(d.timestamp),
                     "det_face":    d.det_face,
                 })
 

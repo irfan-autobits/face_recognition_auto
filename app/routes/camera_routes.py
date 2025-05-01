@@ -9,6 +9,7 @@ from app.routes import bp
 @bp.route('/api/add_camera', methods=['POST'])
 def add_camera_route():
     data = request.get_json()
+    print(f"adding camera data: {data}")
     resp, status = camera_service.add_camera(
         data['camera_name'], data['camera_url'], data['tag']
     )
@@ -75,14 +76,14 @@ def start_feed():
     name = data.get('camera_name')
 
     # DEBUG: what streams do we know about?
-    print("▶️ streams before start_feed:", list(camera_service.streams.keys()), flush=True)
-    print("▶️ active_feed before start_feed:", camera_service.get_active_feed(), flush=True)
+    # print("▶️ streams before start_feed:", list(camera_service.streams.keys()), flush=True)
+    # print("▶️ active_feed before start_feed:", camera_service.get_active_feed(), flush=True)
 
     resp, status = camera_service.start_feed(name)
 
     # DEBUG: did start_feed actually flip the switch?
-    print("👈 start_feed response:", resp, status, flush=True)
-    print("▶️ active_feed after start_feed:", camera_service.get_active_feed(), flush=True)
+    # print("👈 start_feed response:", resp, status, flush=True)
+    # print("▶️ active_feed after start_feed:", camera_service.get_active_feed(), flush=True)
     
     return jsonify(resp), status
 
@@ -99,7 +100,6 @@ def stop_feed():
 def List_cam():
     """List all the camera"""
     response, status = camera_service.list_cameras()
-    print(f"list cam res:{response}")
     return response, status
 
 @bp.route('/camera_timeline', methods=['GET'])

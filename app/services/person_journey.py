@@ -1,10 +1,11 @@
 # app/services/person_journey.py
+from datetime import datetime, timedelta
 import pytz
 from datetime import datetime
 from flask import current_app
 from app.models.model import Detection, Subject
 from config.logger_config import face_proc_logger
-
+from app.utils.time_utils import parse_iso
 def format_duration(seconds):
     seconds = int(seconds)
     hours   = seconds // 3600
@@ -17,8 +18,9 @@ def format_duration(seconds):
         parts.append(f"{secs}s")
     return " ".join(parts)
 
-def to_local(dt):
-    return dt.astimezone(pytz.timezone("Asia/Karachi"))
+from app.utils.time_utils import to_local
+
+# Remove manual to_local; use shared util.
 
 def get_person_journey(detections):
     """
@@ -31,12 +33,12 @@ def get_person_journey(detections):
     journey = []
     # Use the first detection’s timestamp, with microseconds stripped, and its tag.
     first_time = detections[0].timestamp.replace(microsecond=0)
-    local_tz = pytz.timezone("Asia/Karachi")
-    entry_time_local = first_time.astimezone(local_tz)
+    entry_time_local = to_local(first_time)
     current_segment = {
         'camera_tag':  detections[0].camera.tag, # Correctly take the first detection's tag.
-        # 'entry_time':  first_time.strftime('%Y-%m-%d %H:%M:%S'),
-        'entry_time':  entry_time_local.strftime('%Y-%m-%d %H:%M:%S'),
+        # 'entry_time':  first_time.timestamp.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # convert the datetime itself (not its method) to UTC ISO
+        'entry_time':  entry_time_local.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         'start_time_raw': entry_time_local,
         'end_time':    entry_time_local
     }
@@ -63,7 +65,7 @@ def get_person_journey(detections):
             # start new one
             current_segment = {
                 'camera_tag': tag,
-                'entry_time': ts.strftime('%Y-%m-%d %H:%M:%S'),
+                'entry_time': ts.timestamp.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 'start_time_raw': ts,
                 'end_time': ts
             }
@@ -86,15 +88,11 @@ def get_movement_history(subject_name, start_time, end_time):
     Return the ‘journey’ for one subject between two ISO timestamps.
     """
     # parse ISO strings
-    utc       = pytz.UTC
-    start_dt  = datetime.fromisoformat(start_time)
-    end_dt    = datetime.fromisoformat(end_time)
-    end_dt = end_dt.replace(second=59, microsecond=999999)
-    # ensure timezone-aware UTC
-    if start_dt.tzinfo is None:
-        start_dt = utc.localize(start_dt)
-    if end_dt.tzinfo is None:
-        end_dt   = utc.localize(end_dt)
+
+    now_utc   = datetime.now(pytz.UTC)
+    # Parse incoming ISO strings into aware UTC datetimes
+    start_dt  = parse_iso(start_time)
+    end_dt    = parse_iso(end_time)
 
     with current_app.app_context():
         # find the subject record
@@ -108,7 +106,7 @@ def get_movement_history(subject_name, start_time, end_time):
             Detection.query
             .filter(Detection.subject_id == subject.id)
             .filter(Detection.timestamp >= start_dt,
-                    Detection.timestamp <= end_dt)
+                    Detection.timestamp <  end_dt)
             .order_by(Detection.timestamp.asc())
             .all()
         )

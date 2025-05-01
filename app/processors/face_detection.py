@@ -1,4 +1,4 @@
-# final-compre/app/processors/face_detection.py
+# app/processors/face_detection.py
 # from integrations.Compre_Api import compreface_api
 import cv2
 import pytz
