@@ -38,7 +38,7 @@ DET_LOG_FILE_PATH        = REPORTS_DIR / "detection_logs.txt"
 CAM_STAT_LOG_FILE_PATH   = REPORTS_DIR / "cam_stat_logs.txt"
 EXEC_TIME_LOG_FILE_PATH  = REPORTS_DIR / "exec_time_logs.txt"
 FACE_PROC_LOG_FILE_PATH  = REPORTS_DIR / "face_proc_logs.txt"
-
+# config/paths.py
 # Feature flags
 IS_RM_REPORT    = get_env_bool("IS_RM_REPORT")
 IS_GEN_REPORT   = get_env_bool("IS_GEN_REPORT")

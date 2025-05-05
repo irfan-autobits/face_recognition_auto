@@ -8,7 +8,9 @@ from app.services.videocapture import VideoStream
 from config.state import vs_lock, frame_lock, feed_lock
 from config.logger_config import cam_stat_logger
 from sqlalchemy.exc import IntegrityError
-from app.utils.time_utils import now_utc, to_utc_iso, parse_iso
+from app.utils.time_utils import now_utc, to_utc_iso, parse_iso, to_utc, now_local
+from itertools import groupby
+
 # Removed duplicate _start_stream function, please use the method defined in CameraService.
 class CameraService:
     def __init__(self, frame_lock, vs_lock, feed_lock):
@@ -173,7 +175,11 @@ class CameraService:
     def get_active_feed(self):
         with self.feed_lock:
             return self.active_feed
-
+        
+    def count_running_streams(self) -> int:
+        with self.vs_lock:
+            return len(self._vs_list)
+    
     def start_all(self):
         """Start all configured cameras."""
         results = {}
@@ -213,96 +219,108 @@ class CameraService:
             })
         return {'cameras': camera_list}, 200
 
-    def camera_timeline_status(self):
+
+    def camera_timeline_status(self, start_str=None, end_str=None):
         """
         Returns JSON:
         {
-        "camData": [
-            { camera, activePeriods: [{start,end}], feeds: [{start,end}] },
-            …
-        ],
-        "range": { min, max }
+          camData: [
+            { camera, activePeriods:[{start,end}], feeds:[{start,end}] }, …
+          ],
+          range: { min, max }    # UTC ISO-Z strings
         }
         """
-        # get current UTC time
-        now = now_utc()
-        window_start = now - timedelta(days=30)
+        # 1️⃣ Build UTC window from params or default last-30-days
+        now   = now_utc()
+        if start_str and end_str:
+            try:
+                sd = parse_iso(start_str)
+                ed = parse_iso(end_str)
+                # bump end of day if no time component
+                if ed.hour == 0 and ed.minute == 0 and ed.second == 0:
+                    ed = ed.replace(hour=23, minute=59, second=59, microsecond=999999)
+                start_utc = to_utc(sd)
+                end_utc   = to_utc(ed)
+                cam_stat_logger.info(f"camera timeline: {start_utc} to {end_utc}")
+            except Exception:
+                # fallback to last 30d
+                start_utc = now - timedelta(days=30)
+                end_utc   = now
+                cam_stat_logger.error("Invialid date range provided, defaulting to last 30 days")
+        else:
+            cam_stat_logger.warning("No start/end dates provided, defaulting to last 30 days")
+            start_utc = now - timedelta(days=30)
+            end_utc   = now
 
-        # fetch all events in window
+        # 2️⃣ Query CameraEvent between those UTC bounds
         events = (
             CameraEvent.query
             .filter(and_(
-                CameraEvent.timestamp >= window_start,
-                CameraEvent.timestamp <= now
+                CameraEvent.timestamp >= start_utc,
+                CameraEvent.timestamp <= end_utc
             ))
             .order_by(CameraEvent.camera_id, CameraEvent.timestamp)
             .all()
         )
 
-        # gather an entry per camera
-        cam_map = {}
-        for cam in Camera.query.all():
-            cam_map[str(cam.id)] = {
-                "camera": cam.camera_name,
-                "activePeriods": [], 
-                "feeds": []
-            }
+        # 3️⃣ Initialize per-camera structure
+        cam_map = {
+            str(cam.id): {"camera": cam.camera_name, "activePeriods": [], "feeds": []}
+            for cam in Camera.query.all()
+        }
 
-        # helper to consume paired start→stop into periods
-        def build_periods(evts, etype):
+        # 4️⃣ Helper to turn start/stop into periods, serializing as Z-strings
+        def build_periods(evts):
             periods, current = [], None
             for e in evts:
                 if e.action == 'start':
                     current = e.timestamp
                 elif e.action == 'stop' and current:
-                    # serialize in strict UTC ISO
                     periods.append({
                         "start": to_utc_iso(current),
                         "end":   to_utc_iso(e.timestamp)
                     })
                     current = None
-            # if still open-ended
+            # open-ended?
             if current:
-                periods.append({
-                    "start": to_utc_iso(current),
-                    "end":   to_utc_iso(now)
-                })
+                periods.append({"start": to_utc_iso(current), "end": to_utc_iso(end_utc)})
             return periods
 
-        # group events by camera
-        by_cam = {}
+        # 5️⃣ Group events by camera_id
+        from collections import defaultdict
+        by_cam = defaultdict(list)
         for e in events:
-            cid = str(e.camera_id)
-            by_cam.setdefault(cid, []).append(e)
+            by_cam[str(e.camera_id)].append(e)
 
         overall_min, overall_max = None, None
 
-        for cid, evts in by_cam.items():
-            # split camera-type vs feed-type
-            cam_evts  = [e for e in evts if e.event_type == 'camera']
-            feed_evts = [e for e in evts if e.event_type == 'feed']
+        # 6️⃣ For each camera, split into “camera” vs “feed” events
+        for cam_id, evts in by_cam.items():
+            cam_events = [e for e in evts if e.event_type == 'camera']
+            feed_events= [e for e in evts if e.event_type == 'feed']
 
-            ap = build_periods(cam_evts, 'camera')
-            fd = build_periods(feed_evts, 'feed')
+            ap = build_periods(cam_events)
+            fd = build_periods(feed_events)
 
-            cam_map[cid]["activePeriods"] = ap
-            cam_map[cid]["feeds"]         = fd
+            cam_map[cam_id]["activePeriods"] = ap
+            cam_map[cam_id]["feeds"]         = fd
 
-            # update overall range
+            # compute global min/max
             for seg in ap + fd:
-                # use parse_iso so we handle any trailing Z correctly
                 s = parse_iso(seg["start"])
-                e = parse_iso(seg["end"])        
+                x = parse_iso(seg["end"])
                 overall_min = s if overall_min is None or s < overall_min else overall_min
-                overall_max = e if overall_max is None or e > overall_max else overall_max
+                overall_max = x if overall_max is None or x > overall_max else overall_max
 
+        # 7️⃣ Return full payload
         return {
             "camData": list(cam_map.values()),
             "range": {
-                "min": to_utc_iso(overall_min) if overall_min else to_utc_iso(window_start),
-                "max": to_utc_iso(overall_max) if overall_max else to_utc_iso(now)
+                "min": to_utc_iso(overall_min or start_utc),
+                "max": to_utc_iso(overall_max or end_utc)
             }
         }, 200
-        
+
+
 # Module‑level instance
 camera_service = CameraService(frame_lock, vs_lock, feed_lock)

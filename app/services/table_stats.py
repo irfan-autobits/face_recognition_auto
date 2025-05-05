@@ -1,5 +1,6 @@
 # app/services/table_stats.py
 from sqlalchemy.orm import joinedload
+from sqlalchemy import and_
 from flask import jsonify, current_app
 from config.logger_config import cam_stat_logger, face_proc_logger
 from config.paths import MODEL_PACK_NAME
@@ -7,14 +8,15 @@ from sqlalchemy import func, distinct, literal
 from app.models.model import db, Detection, Subject, Camera, Img, Embedding
 from datetime import datetime, timedelta
 from collections import defaultdict
-from app.utils.time_utils import now_local, to_utc
+from app.utils.time_utils import now_local, to_utc, parse_iso
+from app.services.camera_manager import camera_service
+
 def giving_system_stats():
     try:
         model_used = MODEL_PACK_NAME
 
         total_detections = db.session.query(func.count(Detection.id)).scalar()
-        total_subjects   = db.session.query(func.count(Subject.id)).scalar()
-
+        total_active_cameras = camera_service.count_running_streams()
         # count DISTINCT images & embeddings per subject
         subject_stats = (
             db.session.query(
@@ -37,11 +39,11 @@ def giving_system_stats():
                 "image_count":      row.image_count,
                 "embedding_count":  row.embedding_count,
             })
-
+        
         return jsonify({
             "model":            model_used,
             "total_detections": total_detections,
-            "total_subjects":   total_subjects,
+            "active_cameras":   total_active_cameras,
             "subjects":         subjects
         }), 200
 
@@ -50,49 +52,59 @@ def giving_system_stats():
         face_proc_logger.error(f"Error gathering system stats: {e}")
         return jsonify({ "error": str(e) }), 500
 
-def giving_detection_stats():
+def giving_detection_stats(start_str, end_str):
     try:
-        # Step 1: Date range: last 30 days
-        # Compute “today” in server’s local timezone:
-        end_date = now_local().date()        
-        start_date = end_date - timedelta(days=29)
-        date_window = [start_date + timedelta(days=i) for i in range(30)]
+        # 1️⃣ Parse inputs and build UTC range
+        if not start_str or not end_str:
+            face_proc_logger.error("Missing start or end date")
+            raise ValueError("Both start and end dates are required")
 
-        # Step 2: Get actual counts from DB
-        # Filter using UTC-converted start/end
-        start_dt_utc = to_utc(datetime.combine(start_date, datetime.min.time()))
-        end_dt_utc   = to_utc(datetime.combine(end_date,   datetime.max.time()))
+        # Parse ISO (will handle with or without timezone)
+        start_dt = parse_iso(start_str)
+        end_dt   = parse_iso(end_str)
+
+        # Move end_dt to end of day if it has no time component
+        if end_dt.hour == 0 and end_dt.minute == 0 and end_dt.second == 0:
+            end_dt = end_dt.replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+
+        # Convert both to UTC
+        start_utc = to_utc(start_dt)
+        end_utc   = to_utc(end_dt)
+
+        # 2️⃣ Day-wise counts
         results = (
             db.session.query(
                 func.date(Detection.timestamp).label("date"),
                 func.count(Detection.id).label("count")
             )
-            .filter(Detection.timestamp >= start_dt_utc)
-            .filter(Detection.timestamp <= end_dt_utc)
+            .filter(and_(
+                Detection.timestamp >= start_utc,
+                Detection.timestamp <= end_utc
+            ))
             .group_by("date")
             .order_by("date")
             .all()
         )
 
-        # Step 3: Convert query results into a dict
-        counts_by_date = {row.date: row.count for row in results}
+        # Build a list of dates between start and end (inclusive)
+        local_start = start_utc.date()
+        local_end   = end_utc.date()
+        face_proc_logger.info(f"start {local_start} and {local_end}")
+        
+        days = (local_end - local_start).days + 1
+        date_window = [local_start + timedelta(days=i) for i in range(days)]
 
-        # Step 4: Merge
-        day_stats = []
-        for d in date_window:
-            day_stats.append({
-                "date": d.isoformat(),
-                "count": counts_by_date.get(d, 0)
-            })
-            # face_proc_logger.info(f"day_stats: {row} - {counts_by_cam.get(row,0)}")
+        counts_by_date = {r.date: r.count for r in results}
+        day_stats = [
+            {"date": d.isoformat(), "count": counts_by_date.get(d, 0)}
+            for d in date_window
+        ]
 
-        # 2) Camera‑wise totals
-        cams = Camera.query.all()
-        cam_window = [cam.camera_name for cam in cams]
-
+        # 3️⃣ Camera-wise totals (ignoring date)
         cam_rows = (
-            db.session
-            .query(
+            db.session.query(
                 Camera.camera_name.label("camera"),
                 func.count(Detection.id).label("count")
             )
@@ -100,42 +112,32 @@ def giving_detection_stats():
             .group_by(Camera.camera_name)
             .all()
         )
-        counts_by_cam = {row.camera: row.count for row in cam_rows}
+        cam_stats = [{"camera": r.camera, "count": r.count} for r in cam_rows]
 
-        cam_stats = []
-        for row in cam_window:
-            cam_stats.append({"camera": row, "count": counts_by_cam.get(row,0)})
-            # face_proc_logger.info(f"cam_stats: {row} - {counts_by_cam.get(row,0)}")
-
-        # 3) Subject-wise totals, including “Unknown” bucket
+        # 4️⃣ Subject-wise totals (ignoring date)
         sub_rows = (
-            db.session
-            .query(
+            db.session.query(
                 func.coalesce(Subject.subject_name, literal('Unknown')).label('subject'),
                 func.count(Detection.id).label('count')
             )
-            .select_from(Detection)                       # ← start from detections
+            .select_from(Detection)
             .outerjoin(Subject, Detection.subject_id == Subject.id)
-            .group_by('subject')                          # ← group by the alias  
+            .group_by('subject')
             .all()
         )
+        sub_stats = [{"subject": r.subject, "count": r.count} for r in sub_rows]
 
-        # Turn it into a simple list/dict for your UI:
-        sub_stats = [
-            {'subject': row.subject, 'count': row.count}
-            for row in sub_rows
-        ]
-        print(f"day: {day_stats},cam: {cam_stats},sub: {sub_stats}")
         return jsonify({
-            "day_stats": day_stats,
-            "camera_stats": cam_stats,
+            "day_stats":     day_stats,
+            "camera_stats":  cam_stats,
             "subject_stats": sub_stats
         }), 200
 
     except Exception as e:
         db.session.rollback()
-        face_proc_logger.error(f"Failed to gather stats: {e}")
-        return jsonify({"error": str(e)}), 500
+        face_proc_logger.error(f"Failed to gather detection stats: {e}")
+        return jsonify({"error": str(e)}), getattr(e, 'code', 500)
+
         
 def recognition_table(page,limit, search, sort_field, sort_order, offset):
     """API endpoint to list all Recognition"""

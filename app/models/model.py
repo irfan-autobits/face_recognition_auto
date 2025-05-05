@@ -106,6 +106,14 @@ class Embedding(db.Model):
     def __repr__(self):
         return f"<Embedding {self.id}>"
 
+class AppConfig(db.Model):
+    __tablename__ = "app_config"
+    key   = db.Column(db.String(50), primary_key=True)
+    value = db.Column(db.String(10), nullable=False)
+
+    def __repr__(self):
+        return f"<AppConfig {self.key}>"
+    
 class Detection(db.Model):
     __tablename__ = 'detection'
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

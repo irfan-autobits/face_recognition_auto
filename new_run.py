@@ -8,8 +8,10 @@ from app.app_setup import create_app, socketio, db, send_frame
 from app.processors.face_detection import FaceDetectionProcessor
 from app.services.processing_service import ProcessingService
 from app.services.camera_manager import camera_service
+from app.services.settings_manage import settings
 from scripts.manage_db import manage_table
 from config.paths import cam_sources
+from app.services.settings_manage import seed_feature_flags
 
 app = create_app()
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -36,6 +38,9 @@ if __name__ == "__main__":
         manage_table(spec=True)
         # Bootstrap cameras from config
         camera_service.bootstrap_from_env(cam_sources)
+        seed_feature_flags()
+        # now load settings from the database:
+        settings.init_app(app)
 
     # Kick off the frame‐pumping loop
     socketio.start_background_task(send_frame, processing)

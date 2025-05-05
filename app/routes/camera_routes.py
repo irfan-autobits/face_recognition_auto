@@ -9,7 +9,6 @@ from app.routes import bp
 @bp.route('/api/add_camera', methods=['POST'])
 def add_camera_route():
     data = request.get_json()
-    print(f"adding camera data: {data}")
     resp, status = camera_service.add_camera(
         data['camera_name'], data['camera_url'], data['tag']
     )
@@ -105,7 +104,9 @@ def List_cam():
 @bp.route('/camera_timeline', methods=['GET'])
 def camera_timeline():
     """Get camera timeline data"""
-    response, status = camera_service.camera_timeline_status()
+    start_str = request.args.get('start')  # default to today-29?
+    end_str   = request.args.get('end')   
+    response, status = camera_service.camera_timeline_status(start_str, end_str)
     return jsonify(response), status    
 
 @bp.route('/api/active_feed', methods=['GET'])

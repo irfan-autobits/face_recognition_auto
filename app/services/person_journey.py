@@ -35,12 +35,11 @@ def get_person_journey(detections):
     first_time = detections[0].timestamp.replace(microsecond=0)
     entry_time_local = to_local(first_time)
     current_segment = {
-        'camera_tag':  detections[0].camera.tag, # Correctly take the first detection's tag.
-        # 'entry_time':  first_time.timestamp.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        # convert the datetime itself (not its method) to UTC ISO
-        'entry_time':  entry_time_local.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        'camera_tag':     detections[0].camera.tag,
+        # call astimezone on the datetime, not .timestamp()
+        'entry_time':     entry_time_local.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         'start_time_raw': entry_time_local,
-        'end_time':    entry_time_local
+        'end_time':       entry_time_local
     }
     face_proc_logger.debug(f"[START] {entry_time_local.isoformat()} tag={current_segment['camera_tag']}")
 
@@ -64,10 +63,11 @@ def get_person_journey(detections):
 
             # start new one
             current_segment = {
-                'camera_tag': tag,
-                'entry_time': ts.timestamp.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                'camera_tag':     tag,
+                # use the datetime itself, then convert to UTC ISO
+                'entry_time':     ts.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 'start_time_raw': ts,
-                'end_time': ts
+                'end_time':       ts
             }
             face_proc_logger.debug(f"[NEW] {ts.isoformat()} tag={tag}")
 

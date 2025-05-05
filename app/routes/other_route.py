@@ -8,6 +8,7 @@ from flask import send_from_directory, abort
 import os
 from config.paths import FACE_DIR, SUBJECT_IMG_DIR
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
+from app.services.settings_manage import settings
 from app.routes import bp 
 
 # Blueprint for routes
@@ -76,15 +77,9 @@ def serve_sub(subpath):
 
 # ─── person movement ─────────────────────────────────────────────────
 @bp.route('/api/movement/<person_name>', methods=['GET'])
-def movement_history(person_name):
-    history = get_movement_history(person_name)
-    return jsonify(history)
-
-@bp.route('/api/movement/<person_name>', methods=['POST'])
 def get_movement(person_name):
-    data = request.get_json()
-    start_time = data.get('start_time')
-    end_time = data.get('end_time')
+    start_time = request.args.get('start')
+    end_time   = request.args.get('end')
 
     history = get_movement_history(person_name, start_time, end_time)
     return jsonify(history)
@@ -97,9 +92,27 @@ def get_system_stats():
 
 @bp.route('/api/detections_stats', methods=['GET'])
 def detection_stats():
-    response, status = giving_detection_stats()
+    start_str = request.args.get('start')  # default to today-29?
+    end_str   = request.args.get('end')   
+    response, status = giving_detection_stats(start_str, end_str)
     return response, status     
  
+# ─── settings page ─────────────────────────────────────────────────
+
+@bp.route("/settings", methods=["GET"])
+def list_settings():
+    return jsonify(settings._cache), 200
+
+@bp.route("/settings", methods=["POST"])
+def update_setting():
+    data = request.get_json()
+    key   = data.get("key")
+    value = data.get("value")
+    if key is None or not isinstance(value, bool):
+        return jsonify({"error": "Must provide key (str) and value (bool)"}), 400
+    settings.set(key, value)
+    return jsonify({key: settings.get(key)}), 200
+
 # @bp.route('/api/location', methods=['POST'])
 # def add_location():
 #     """
