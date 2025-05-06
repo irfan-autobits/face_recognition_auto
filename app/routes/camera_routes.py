@@ -101,7 +101,7 @@ def List_cam():
     response, status = camera_service.list_cameras()
     return response, status
 
-@bp.route('/camera_timeline', methods=['GET'])
+@bp.route('/api/camera_timeline', methods=['GET'])
 def camera_timeline():
     """Get camera timeline data"""
     start_str = request.args.get('start')  # default to today-29?

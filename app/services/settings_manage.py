@@ -35,9 +35,9 @@ settings = SettingsService()
 
 def seed_feature_flags():
     defaults = {
-        "IS_RECOGNIZE":  IS_RECOGNIZE,
-        "IS_GEN_REPORT": IS_GEN_REPORT,
-        "IS_RM_REPORT":  IS_RM_REPORT,
+        "RECOGNIZE":  IS_RECOGNIZE,
+        "GEN_REPORT": IS_GEN_REPORT,
+        "RM_REPORT":  IS_RM_REPORT,
     }
     for key, val in defaults.items():
         row = AppConfig.query.get(key)
@@ -49,3 +49,4 @@ def seed_feature_flags():
             # keep whatever is in the database (so user toggles survive restarts)
             continue
     db.session.commit()
+    face_proc_logger.info(f"settings populated as :{defaults}")

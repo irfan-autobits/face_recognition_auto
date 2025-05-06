@@ -8,7 +8,7 @@ from app.services.settings_manage import settings
 
 def cutm_integ(frame):
     with model_lock:
-        if settings.get("IS_RECOGNIZE"):
+        if settings.get("RECOGNIZE"):
             # results = yunet_detect(frame)
             # results = RetinaFace_detect(frame)
             # results = find_faces_post(frame)

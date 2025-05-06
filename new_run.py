@@ -4,13 +4,13 @@ import signal
 import sys
 
 from flask_cors import CORS
-from app.app_setup import create_app, socketio, db, send_frame
-from app.processors.face_detection import FaceDetectionProcessor
-from app.services.processing_service import ProcessingService
-from app.services.camera_manager import camera_service
-from app.services.settings_manage import settings
-from scripts.manage_db import manage_table
 from config.paths import cam_sources
+from scripts.manage_db import manage_table
+from app.services.settings_manage import settings
+from app.services.camera_manager import camera_service
+from app.services.processing_service import ProcessingService
+from app.processors.face_detection import FaceDetectionProcessor
+from app.app_setup import create_app, socketio, db, send_frame
 from app.services.settings_manage import seed_feature_flags
 
 app = create_app()
@@ -35,7 +35,7 @@ signal.signal(signal.SIGTERM, graceful_shutdown)
 if __name__ == "__main__":
     with app.app_context():
         # Rebuild or migrate your tables
-        manage_table(spec=True)
+        manage_table(drop=True)
         # Bootstrap cameras from config
         camera_service.bootstrap_from_env(cam_sources)
         seed_feature_flags()

@@ -55,23 +55,22 @@ def giving_system_stats():
 def giving_detection_stats(start_str, end_str):
     try:
         # 1️⃣ Parse inputs and build UTC range
-        if not start_str or not end_str:
-            face_proc_logger.error("Missing start or end date")
-            raise ValueError("Both start and end dates are required")
-
-        # Parse ISO (will handle with or without timezone)
-        start_dt = parse_iso(start_str)
-        end_dt   = parse_iso(end_str)
-
-        # Move end_dt to end of day if it has no time component
-        if end_dt.hour == 0 and end_dt.minute == 0 and end_dt.second == 0:
-            end_dt = end_dt.replace(
-                hour=23, minute=59, second=59, microsecond=999999
-            )
-
-        # Convert both to UTC
-        start_utc = to_utc(start_dt)
-        end_utc   = to_utc(end_dt)
+        if start_str and end_str:
+            # user-supplied window
+            start_dt = parse_iso(start_str)
+            end_dt   = parse_iso(end_str)
+            # bump to end of day if they only provided a date
+            if end_dt.hour == 0 and end_dt.minute == 0 and end_dt.second == 0:
+                end_dt = end_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+            start_utc = to_utc(start_dt)
+            end_utc   = to_utc(end_dt)
+            face_proc_logger.info(f"Detection stats window: {start_utc} to {end_utc}")
+        else:
+            # default to “today from midnight until now”
+            face_proc_logger.info("No start/end, defaulting to today")
+            local_mid = now_local().replace(hour=0, minute=0, second=0, microsecond=0)
+            start_utc = to_utc(local_mid)
+            end_utc   = to_utc(now_local())
 
         # 2️⃣ Day-wise counts
         results = (
@@ -91,7 +90,7 @@ def giving_detection_stats(start_str, end_str):
         # Build a list of dates between start and end (inclusive)
         local_start = start_utc.date()
         local_end   = end_utc.date()
-        face_proc_logger.info(f"start {local_start} and {local_end}")
+        face_proc_logger.info(f"start {local_start} and {local_end} provided for detection stats")
         
         days = (local_end - local_start).days + 1
         date_window = [local_start + timedelta(days=i) for i in range(days)]
@@ -126,7 +125,7 @@ def giving_detection_stats(start_str, end_str):
             .all()
         )
         sub_stats = [{"subject": r.subject, "count": r.count} for r in sub_rows]
-
+        face_proc_logger.info(f"stats returned are {day_stats}")
         return jsonify({
             "day_stats":     day_stats,
             "camera_stats":  cam_stats,

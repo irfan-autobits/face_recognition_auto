@@ -89,9 +89,33 @@ class CameraService:
             return {'error': f"Camera {name} not responding"}, 400
 
         # only one lookup, then reuse `cam`
+        # — before we log this new START, close out any lingering START w/o STOP
+        self._close_open_period(cam, event_type='camera')        
         self._log_event(cam, 'camera', 'start')
         cam_stat_logger.info(f"Camera {name} started")
         return {'message': f"Camera {name} started"}, 200
+
+    def _close_open_period(self, cam: Camera, event_type: str):
+        """
+        If the last CameraEvent for this cam/event_type is a START with no STOP,
+        write a STOP at now_utc().
+        """
+        last = (
+            CameraEvent.query
+            .filter_by(camera_id=cam.id, event_type=event_type)
+            .order_by(CameraEvent.timestamp.desc())
+            .first()
+        )
+        if last and last.action == 'start':
+            stop_evt = CameraEvent(
+                camera_id=cam.id,
+                event_type=event_type,
+                action='stop',
+                timestamp=now_utc()
+            )
+            db.session.add(stop_evt)
+            db.session.commit()
+            cam_stat_logger.info(f"Camera {cam.camera_name} found open ended ,so its closed before start event")
 
     def _core_stop_operations(self, name):
         """Shared stop logic for both methods"""
@@ -105,6 +129,7 @@ class CameraService:
     def stop_camera(self, name):
         cam = self._core_stop_operations(name)
         if not cam:
+            cam_stat_logger.error(f"Camera {name} not found")
             return {'error': f"Camera {name} not found"}, 404
         
         self._log_event(cam, 'camera', 'stop')
@@ -155,6 +180,8 @@ class CameraService:
                 self._log_event(old_cam, 'feed', 'stop')
             self.active_feed = name
 
+        # — before we log this new START, close out any lingering START w/o STOP
+        self._close_open_period(cam, event_type='feed')     
         self._log_event(cam, 'feed', 'start')
         cam_stat_logger.info(f"Feed started for camera '{name}'")
         return {'message': f"Feed started for '{name}'"}, 200
@@ -165,6 +192,7 @@ class CameraService:
             self.active_feed = None
 
         if not name:
+            cam_stat_logger.error("No feed was active")
             return {'error': 'No feed was active'}, 400
 
         cam = Camera.query.filter_by(camera_name=name).first()
@@ -236,20 +264,31 @@ class CameraService:
             try:
                 sd = parse_iso(start_str)
                 ed = parse_iso(end_str)
-                # bump end of day if no time component
-                if ed.hour == 0 and ed.minute == 0 and ed.second == 0:
-                    ed = ed.replace(hour=23, minute=59, second=59, microsecond=999999)
+
                 start_utc = to_utc(sd)
                 end_utc   = to_utc(ed)
-                cam_stat_logger.info(f"camera timeline: {start_utc} to {end_utc}")
+                if start_utc > end_utc:
+                    cam_stat_logger.info(f"camera timeline provided are: {start_utc} to {end_utc}")
+                elif start_utc == end_utc:
+                    cam_stat_logger.info(f"camera timeline provided are same: {start_utc} to {end_utc}")
+                    end_utc   = now
+                else:
+                    local_midnight = now_local().replace(hour=0, minute=0, second=0, microsecond=0)
+                    start_utc = to_utc(local_midnight)
+                    end_utc   = now
+                    cam_stat_logger.error("Invialid date range provided, defaulting to today")                    
             except Exception:
                 # fallback to last 30d
-                start_utc = now - timedelta(days=30)
+                local_midnight = now_local().replace(hour=0, minute=0, second=0, microsecond=0)
+                start_utc = to_utc(local_midnight)
                 end_utc   = now
-                cam_stat_logger.error("Invialid date range provided, defaulting to last 30 days")
+                cam_stat_logger.error("Invialid date range provided, defaulting to today")
         else:
-            cam_stat_logger.warning("No start/end dates provided, defaulting to last 30 days")
-            start_utc = now - timedelta(days=30)
+            cam_stat_logger.info("No start/end dates provided, defaulting to today")
+            # Calculate today’s local midnight in UTC
+            # 1) take now in LOCAL_TZ, floor to midnight, then convert to UTC
+            local_midnight = now_local().replace(hour=0, minute=0, second=0, microsecond=0)
+            start_utc = to_utc(local_midnight)
             end_utc   = now
 
         # 2️⃣ Query CameraEvent between those UTC bounds
