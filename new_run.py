@@ -35,7 +35,7 @@ signal.signal(signal.SIGTERM, graceful_shutdown)
 if __name__ == "__main__":
     with app.app_context():
         # Rebuild or migrate your tables
-        manage_table(drop=True)
+        manage_table(spec=True)
         # Bootstrap cameras from config
         camera_service.bootstrap_from_env(cam_sources)
         seed_feature_flags()

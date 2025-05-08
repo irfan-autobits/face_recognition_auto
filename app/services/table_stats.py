@@ -137,7 +137,7 @@ def giving_detection_stats(start_str, end_str):
         face_proc_logger.error(f"Failed to gather detection stats: {e}")
         return jsonify({"error": str(e)}), getattr(e, 'code', 500)
 
-        
+# app/services/table_stats.py
 def recognition_table(page,limit, search, sort_field, sort_order, offset):
     """API endpoint to list all Recognition"""
     try:
@@ -160,7 +160,19 @@ def recognition_table(page,limit, search, sort_field, sort_order, offset):
                 )
 
             # ─── apply sorting ─────────────────────────────────────────────────
-            sort_col = getattr(Detection, sort_field, Detection.timestamp)
+            if sort_field == 'id':
+                sort_col = Detection.rec_no
+            elif sort_field == 'subject':
+                sort_col = Subject.subject_name
+            elif sort_field == 'camera_name':
+                sort_col = Camera.camera_name
+            elif sort_field == 'camera_tag':
+                sort_col = Camera.tag
+            elif sort_field in ('det_score','distance','timestamp'):
+                sort_col = getattr(Detection, sort_field)
+            else:
+                sort_col = Detection.timestamp
+
             sort_col = sort_col.asc() if sort_order == 'asc' else sort_col.desc()
 
             # ─── fetch with joined‑load to avoid N+1 ──────────────────────────
@@ -181,7 +193,7 @@ def recognition_table(page,limit, search, sort_field, sort_order, offset):
             body = []
             for d in detections:
                 body.append({
-                    "id":          str(d.rec_no),
+                    "id":          d.rec_no,             # keep it numeric
                     "subject":     d.subject_name or "Unknown",
                     "camera_name": d.camera_name or "Unknown",
                     "camera_tag":  d.camera_tag or "Unknown",
@@ -191,10 +203,14 @@ def recognition_table(page,limit, search, sort_field, sort_order, offset):
                     "det_face":    d.det_face,
                 })
 
+            # → compute total *after* filtering, before pagination
+            total = query.with_entities(func.count(Detection.id)).scalar()
+
             return {
                 'detections': body,
                 'page':       page,
-                'limit':      limit
+                'limit':      limit,
+                'total':      total,
             }, 200
 
     except Exception as e:
