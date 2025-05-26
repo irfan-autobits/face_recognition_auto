@@ -7,7 +7,7 @@ from app.services.table_stats import giving_system_stats, giving_detection_stats
 from flask import send_from_directory, abort
 import os
 from config.paths import FACE_DIR, SUBJECT_IMG_DIR
-from config.logger_config import cam_stat_logger , console_logger, exec_time_logger
+from config.logger_config import cam_stat_logger , console_logger, exec_time_logger, face_proc_logger
 from app.services.settings_manage import settings
 from app.routes import bp 
 
@@ -82,6 +82,8 @@ def get_movement(person_name):
     end_time   = request.args.get('end')
 
     history = get_movement_history(person_name, start_time, end_time)
+    # print(f"movement for {person_name} from {start_time} end{end_time}:{history}")
+    # face_proc_logger.info(f"movement for {person_name} :{history}")
     return jsonify(history)
 
 # ─── system stats ─────────────────────────────────────────────────
@@ -150,4 +152,3 @@ def update_setting():
 #     """
 #     response, status = list_infra_locations()
 #     return response, status 
-

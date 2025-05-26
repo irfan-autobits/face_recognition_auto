@@ -23,6 +23,7 @@ class SettingsService:
 
     def set(self, key: str, value: bool):
         row = AppConfig.query.get(key)
+        # face_proc_logger.info(f"set {key} to {value}")
         if row:
             row.value = "true" if value else "false"
         else:
