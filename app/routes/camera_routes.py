@@ -21,6 +21,15 @@ def remove_camera_route():
     response, status = camera_service.remove_camera(data.get('camera_name'))
     return jsonify(response), status
 
+@bp.route('/api/edit_camera', methods=['POST'])
+def edit_camera_route():
+    """API endpoint to edit a camera"""
+    data = request.get_json()
+    response, status = camera_service.edit_camera(data.get('original_name'),
+                                                  data.get('new_name'),
+                                                  data.get('new_tag'))
+    return jsonify(response), status
+
 @bp.route('/api/start_proc', methods=['POST'])
 def start_proc():
     """Start the camera"""

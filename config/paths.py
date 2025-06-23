@@ -24,7 +24,8 @@ MODEL_PACK_NAME = os.getenv("MODEL_PACK_NAME", "buffalo_l")
 
 # Application storage
 DATABASE_DIR    = BASE_DIR / "AppData"
-MODELS_DIR    = BASE_DIR / ".models"
+DOWNLOAD_DIR    = BASE_DIR / "Downloadable" 
+MODELS_DIR      = BASE_DIR / ".models"
 SUBJECT_IMG_DIR = DATABASE_DIR / "subjects_imgs"
 REPORTS_DIR     = DATABASE_DIR / "Reports"
 FACE_DIR        = REPORTS_DIR / "saved_face"
@@ -38,6 +39,7 @@ DET_LOG_FILE_PATH        = REPORTS_DIR / "detection_logs.txt"
 CAM_STAT_LOG_FILE_PATH   = REPORTS_DIR / "cam_stat_logs.txt"
 EXEC_TIME_LOG_FILE_PATH  = REPORTS_DIR / "exec_time_logs.txt"
 FACE_PROC_LOG_FILE_PATH  = REPORTS_DIR / "face_proc_logs.txt"
+SUB_PROC_LOG_FILE_PATH  = REPORTS_DIR / "sub_proc_logs.txt"
 # config/paths.py
 # Feature flags
 IS_RM_REPORT    = get_env_bool("IS_RM_REPORT")

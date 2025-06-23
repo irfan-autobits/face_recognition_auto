@@ -27,7 +27,7 @@ class Camera(db.Model):
     __tablename__ = 'camera'
     id           = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     camera_name  = db.Column(db.String(50), nullable=False, unique=True, index=True)
-    camera_url   = db.Column(db.Text, nullable=False)
+    camera_url   = db.Column(db.Text, nullable=False, unique=True)
     tag          = db.Column(db.String(50), nullable=False)
 
     detections   = db.relationship(
@@ -61,11 +61,11 @@ class Subject(db.Model):
         db.DateTime(timezone=True), nullable=False,
         default=lambda: now_utc()
     )
-    age          = db.Column(db.Integer)
-    gender       = db.Column(db.String(10))
-    email        = db.Column(db.String(100))
-    phone        = db.Column(db.String(15))
-    aadhar       = db.Column(db.String(20))
+    age          = db.Column(db.Integer,     db.CheckConstraint('age >= 0 AND age <= 120'))
+    gender       = db.Column(db.String(10),  db.CheckConstraint("gender IN ('Male', 'Female', 'Other')"))
+    email        = db.Column(db.String(100), db.CheckConstraint("email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$'"))
+    phone        = db.Column(db.String(10),  db.CheckConstraint("phone ~ '^[0-9]{10}$'"))
+    aadhar       = db.Column(db.String(12),  db.CheckConstraint("aadhar ~ '^[0-9]{12}$'"))
 
     # one-to-many without cascade; passive_deletes ensures SET NULL works
     detections   = db.relationship(
@@ -85,7 +85,7 @@ class Subject(db.Model):
 class Img(db.Model):
     __tablename__ = 'img'
     id         = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    image_url  = db.Column(db.String(255), nullable=False)
+    image_url  = db.Column(db.String(255), unique=True, nullable=False)
     subject_id = db.Column(UUID(as_uuid=True), db.ForeignKey('subject.id'), nullable=False)
 
     embeddings = db.relationship(

@@ -2,14 +2,15 @@
 from flask import jsonify, render_template, request
 from app.services.user_management import sign_up_user, log_in_user
 from app.services.person_journey import get_movement_history
-from app.services.table_stats import giving_system_stats, giving_detection_stats, recognition_table
+from app.services.table_stats import giving_system_stats, giving_detection_stats, recognition_table, heatmap_by_range
 # from app.services.infrastructure_layout import add_infra_location, remove_location, list_infra_locations
 from flask import send_from_directory, abort
 import os
-from config.paths import FACE_DIR, SUBJECT_IMG_DIR
+from config.paths import FACE_DIR, SUBJECT_IMG_DIR, DOWNLOAD_DIR
 from config.logger_config import cam_stat_logger , console_logger, exec_time_logger, face_proc_logger
 from app.services.settings_manage import settings
 from app.routes import bp 
+from app.services.reco_table_helper import parse_params
 
 # Blueprint for routes
 
@@ -44,16 +45,11 @@ def login():
     return log_in_user(email, password)
 
 # ─── serving table  ─────────────────────────────────────────────────
-@bp.route('/api/reco_table', methods=['GET'])
+@bp.route('/api/reco_table', methods=['POST'])
 def List_det():
-    """List all the Recognitions"""
-    page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', 500, type=int)
-    search = request.args.get('search', '', type=str)
-    sort_field = request.args.get('sort_field', 'timestamp', type=str)
-    sort_order = request.args.get('sort_order', 'desc', type=str)
-    offset = (page - 1) * limit
-    responce, status = recognition_table(page,limit, search, sort_field, sort_order, offset)
+    data = request.get_json()
+    params = parse_params(data)
+    responce, status = recognition_table(params)
     return responce, status
 
 # ─── serving img routes  ─────────────────────────────────────────────────
@@ -72,6 +68,21 @@ def serve_sub(subpath):
     file_path = os.path.join(SUBJECT_IMG_DIR, subpath)
     if os.path.isfile(file_path):
         return send_from_directory(SUBJECT_IMG_DIR, subpath)
+    else:
+        abort(404)
+
+@bp.route('/download/<path:csvpath>', methods=['GET'])
+def download_csv(csvpath):
+    """Serve file for download with content-disposition header"""
+    file_path = os.path.join(DOWNLOAD_DIR, csvpath)
+    print(f"file path is {file_path} \n should be {DOWNLOAD_DIR}/sample_add.csv")
+    if os.path.isfile(file_path):
+        return send_from_directory(
+            DOWNLOAD_DIR,
+            csvpath,
+            as_attachment=True,
+            download_name=csvpath
+        )
     else:
         abort(404)
 
@@ -94,11 +105,38 @@ def get_system_stats():
 
 @bp.route('/api/detections_stats', methods=['GET'])
 def detection_stats():
-    start_str = request.args.get('start')  # default to today-29?
-    end_str   = request.args.get('end')   
-    response, status = giving_detection_stats(start_str, end_str)
+    """ /api/detections_stats?start=2025-06-18&end=2025-06-18 """
+    start_str = request.args.get('start') # 2025-06-18T06:36:43Z
+    end_str   = request.args.get('end')
+    interval   = request.args.get('interval') # 'daily', 'hourly'
+    response, status = giving_detection_stats(time_window_start=start_str, time_window_end=end_str, interval=interval)
     return response, status     
  
+@bp.route('/api/detection_heatmap_range', methods=['GET'])
+def detection_heatmap_range():
+    """ 
+    REQ:- GET /api/detection_heatmap_range?start=YYYY-MM-DD&end=YYYY-MM-DD
+    returns:- 
+        {
+        "start": "2025-02-21",
+        "end": "2025-06-20",
+        "data": [
+            { "date": "2025-02-21", "count": 5 },
+            { "date": "2025-02-22", "count": 0 },
+            ...
+        ]
+        }
+    """
+    start = request.args.get("start")
+    end = request.args.get("end")
+
+    if not start or not end:
+        return jsonify({"error": "start and end dates required"}), 400
+
+    response, status = heatmap_by_range(start, end)
+    return response, status       
+
+
 # ─── settings page ─────────────────────────────────────────────────
 
 @bp.route("/settings", methods=["GET"])

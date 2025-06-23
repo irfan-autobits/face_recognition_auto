@@ -1,0 +1,4 @@
+subject_name,file_name,Age,Gender,Email,Phone,Aadhar
+person1,person1.jpeg,0,Male,person1@persivo.com,1234567890,123456789012
+person2,person2.png,30,Female,person2@persivo.com,1234567890,123456789012
+person3,person3.jpg,120,Other,person3@persivo.com,1234567890,123456789012

@@ -2,6 +2,7 @@
 # from integrations.Compre_Api import compreface_api
 import cv2
 import pytz
+from flask import current_app
 from integrations.custom_service import cutm_integ
 from app.processors.frame_draw import drawing_on_frame
 from app.processors.save_face import save_image
@@ -79,7 +80,7 @@ class FaceDetectionProcessor:
                 frame = drawing_on_frame(frame, box, landmarks, landmark_3d_68, subject, color, probability, spoof_res, distance, draw_lan=False)  
                 if IS_GEN_REPORT:
                     face_path = save_image(frame, cam_name, box, subject, distance, is_unknown)
-                    face_url = f"http://localhost:5757/faces/{face_path}"
+                    face_url = f"{current_app.config['SERV_HOST']}:{current_app.config['PORT']}/faces/{face_path}"
                     # Use the app context explicitly
                     with self.app.app_context():
                         subj = Subject.query.filter_by(subject_name=subject).first()   # or None

@@ -28,11 +28,10 @@ class CameraService:
         with self.vs_lock:
             return dict(self._vs_list)
 
-    def _start_stream(self, name, source):
+    def _start_stream(self, name, source, attempts=7):
         """Test and start a VideoStream for a camera."""
         vs = VideoStream(src=source)
         vs.start()
-        attempts = 7
         for i in range(attempts):
             frame = vs.read()
             if frame is not None:
@@ -75,7 +74,7 @@ class CameraService:
         # if start_camera fails you might even want to delete the row … up to you
         return resp, status
 
-    def start_camera(self, name):
+    def start_camera(self, name, silent=False):
         """Start an existing camera if not already running."""
         cam = Camera.query.filter_by(camera_name=name).first()
         if not cam:
@@ -90,9 +89,11 @@ class CameraService:
 
         # only one lookup, then reuse `cam`
         # — before we log this new START, close out any lingering START w/o STOP
-        self._close_open_period(cam, event_type='camera')        
-        self._log_event(cam, 'camera', 'start')
-        cam_stat_logger.info(f"Camera {name} started")
+        if not silent:
+            self._close_open_period(cam, event_type='camera')        
+            self._log_event(cam, 'camera', 'start')
+            cam_stat_logger.info(f"Camera {name} started")
+
         return {'message': f"Camera {name} started"}, 200
 
     def _close_open_period(self, cam: Camera, event_type: str):
@@ -126,14 +127,15 @@ class CameraService:
             vs.stop()
         return Camera.query.filter_by(camera_name=name).first()
 
-    def stop_camera(self, name):
+    def stop_camera(self, name, silent=False):
         cam = self._core_stop_operations(name)
         if not cam:
             cam_stat_logger.error(f"Camera {name} not found")
             return {'error': f"Camera {name} not found"}, 404
         
-        self._log_event(cam, 'camera', 'stop')
-        cam_stat_logger.info(f"Stopped camera {name}")
+        if not silent:
+            self._log_event(cam, 'camera', 'stop')
+            cam_stat_logger.info(f"Stopped camera {name}")
         
         # Cleanup feed if it was using this camera
         if self.active_feed == name:
@@ -160,6 +162,37 @@ class CameraService:
         db.session.delete(cam)
         db.session.commit()
         cam_stat_logger.info(f"Removed camera {name}")
+        return resp, status
+
+    def edit_camera(self, old_name, new_name=None, new_tag=None):
+        """Edit camera record from DB"""
+        cam = Camera.query.filter_by(camera_name=old_name).first()
+        if not cam:
+            cam_stat_logger.error(f"old Camera {old_name} not found in DB while editing")
+            return {'error': f"old Camera {old_name} not found in DB while editing"}, 404
+        # If a new name/tag is provided, update the existin camera record
+        updated = False
+        if new_name and new_name != old_name:
+            existing = Camera.query.filter_by(camera_name=new_name).first()
+            if existing:
+                return {'error': f"Camera name '{new_name}' already exists"}, 409
+            was_running = old_name in self._vs_list
+            if was_running:
+                self.stop_camera(old_name, silent=True)
+            # updating ...
+            cam.camera_name = new_name
+            if was_running:
+                self.start_camera(new_name, silent=True) 
+            updated = True                
+        if new_tag and new_tag != cam.tag:
+            cam.tag = new_tag
+            updated = True
+
+        if updated:
+            db.session.commit()            
+            cam_stat_logger.info(f"edited camera {old_name} with new name {new_name} and tag {new_tag}")
+        else:
+            resp, status = {'error': f"edit Camera {old_name} new name or tag not provided"}, 404 
         return resp, status
 
     def start_feed(self, name):
