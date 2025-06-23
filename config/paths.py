@@ -58,9 +58,10 @@ CAMERA_SOURCES = os.getenv("CAMERA_SOURCES", "{}")
 cam_sources    = json.loads(CAMERA_SOURCES)
 
 # Network & API settings
-HOST    = os.getenv("HOST", "http://localhost")
-PORT    = os.getenv("PORT", "8000")
-API_KEY = os.getenv("API_KEY","00000000-0000-0000-0000-000000000002")
+HOST         = os.getenv("HOST", "http://localhost")
+SERVING_HOST = os.getenv("SERVING_HOST", "localhost")
+PORT         = os.getenv("PORT", "8000")
+API_KEY      = os.getenv("API_KEY","00000000-0000-0000-0000-000000000002")
 
 # Face detection/recognition thresholds
 FACE_DET_TH = float(os.getenv("FACE_DET_TH", 0.8))
