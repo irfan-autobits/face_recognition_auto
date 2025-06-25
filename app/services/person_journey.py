@@ -29,17 +29,18 @@ def get_person_journey_update(detections):
     MAX_GAP = timedelta(seconds=5)  # Break segment if gap exceeds 5 seconds
     journey = []
     
-    # Initialize first segment (UTC times only)
+    # Initialize first segment with null-safe tag access
     first_utc = detections[0].timestamp.replace(microsecond=0)
     current_segment = {
-        'camera_tag': detections[0].camera.tag,
+        'camera_tag': detections[0].m,  # Use legacy tag directly
         'start_utc': first_utc,
         'last_utc': first_utc
     }
 
     for det in detections[1:]:
         ts_utc = det.timestamp.replace(microsecond=0)
-        tag = det.camera.tag
+        # Always use legacy_camera_tag to avoid null issues
+        tag = det.legacy_camera_tag
         
         # Calculate time gap from last detection
         gap = ts_utc - current_segment['last_utc']
