@@ -67,7 +67,7 @@ def stop_all_proc():
 @bp.route('/api/restart_all_proc', methods=['GET'])
 def restart_all_proc():
     """Restart all cameras: stop then start."""
-    stop_response, stop_status = camera_service.start_all()
+    stop_response, stop_status = camera_service.stop_all()
     # Optionally, can check stop_status before proceeding.
     start_response, start_status = camera_service.start_all()
     # want to return both responses, for example:
@@ -110,13 +110,14 @@ def List_cam():
     response, status = camera_service.list_cameras()
     return response, status
 
+# app/routes/camera_routes.py
 @bp.route('/api/camera_timeline', methods=['GET'])
 def camera_timeline():
-    """Get camera timeline data"""
-    start_str = request.args.get('start')  # default to today-29?
-    end_str   = request.args.get('end')   
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    
     response, status = camera_service.camera_timeline_status(start_str, end_str)
-    return jsonify(response), status    
+    return jsonify(response), status  
 
 @bp.route('/api/active_feed', methods=['GET'])
 def active_feed():
