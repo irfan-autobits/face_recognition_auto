@@ -3,6 +3,7 @@ import subprocess
 import cv2
 import numpy as np
 from threading import Thread, Lock
+from config.paths import USE_CUDA
 
 class VideoStream(object):
     def __init__(self, src=0, width=960, height=540):
@@ -53,18 +54,23 @@ class VideoStream(object):
         """
         Launches the FFmpeg process to decode the video source.
         """
-        command = [
-            "ffmpeg",
-            # "-hwaccel", "cuda",                # Enable CUDA hardware acceleration
-            "-i", self.src,                      # Input video source
+
+        command = ["ffmpeg"]
+
+        if USE_CUDA:
+            command += ["-hwaccel", "cuda"]  # Enable CUDA if requested
+
+        command += [
+            "-i", self.src,                              # Input video source
             "-vf", f"scale={self.width}:{self.height}",  # Resize video
-            "-f", "rawvideo",                    # Output raw video format
-            "-pix_fmt", "bgr24",                 # OpenCV-compatible pixel format
-            "-an",                               # Disable audio
-            "-sn",                               # Disable subtitles
-            "-tune", "zerolatency",              # Optimize for low latency
-            "-"                                  # Output to stdout
+            "-f", "rawvideo",                            # Output raw video format
+            "-pix_fmt", "bgr24",                         # OpenCV-compatible pixel format
+            "-an",                                       # Disable audio
+            "-sn",                                       # Disable subtitles
+            "-tune", "zerolatency",                      # Optimize for low latency
+            "-"                                          # Output to stdout
         ]
+
         print(f"FFmpeg started for {self.src}")
         self.pipe = subprocess.Popen(
             command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10**8

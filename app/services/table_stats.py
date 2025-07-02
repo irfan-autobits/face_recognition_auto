@@ -145,8 +145,9 @@ def giving_system_stats():
 
 def giving_detection_stats(time_window_start=None, time_window_end=None, interval='hourly'):
     try:
-        print(f"time_window_start",time_window_start)
-        print(f"time_window_end",time_window_end)
+        # print(f"time_window_start",time_window_start)
+        # print(f"time_window_end",time_window_end)
+        cam_stat_logger.info(f"det_stat_start: {time_window_start}, end: {time_window_end}")
         # Default to last 24 hours if no window specified
         # Group by clause depends on interval
         if interval == 'hourly':

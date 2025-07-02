@@ -7,7 +7,7 @@ from app.utils.pyutil import get_env_bool
 CLEAN_VARS = [
     'IS_RECOGNIZE','IS_RM_REPORT','IS_GEN_REPORT',
     'model_pack_name','CAMERA_SOURCES','HOST','PORT','API_KEY',
-    'FACE_DET_LM','FACE_DET_TH','FACE_REC_TH','SECRET_KEY'
+    'FACE_DET_LM','FACE_DET_TH','FACE_REC_TH','SECRET_KEY','USE_CUDA'
 ]
 for v in CLEAN_VARS:
     os.environ.pop(v, None)
@@ -45,6 +45,7 @@ SUB_PROC_LOG_FILE_PATH  = REPORTS_DIR / "sub_proc_logs.txt"
 IS_RM_REPORT    = get_env_bool("IS_RM_REPORT")
 IS_GEN_REPORT   = get_env_bool("IS_GEN_REPORT")
 IS_RECOGNIZE    = get_env_bool("IS_RECOGNIZE")
+USE_CUDA        = get_env_bool("USE_CUDA")
 
 # Optionally purge old reports on startup
 if IS_RM_REPORT:

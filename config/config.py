@@ -1,6 +1,6 @@
 # final-compre/config/config.py
 import os
-from config.paths import SECRET_KEY, SERVING_HOST
+from config.paths import SECRET_KEY, SERVING_HOST, PORT
 
 class Config:
     SQLALCHEMY_DATABASE_URI = "postgresql+psycopg2://postgres:postgres@localhost:6432/frs"
@@ -8,4 +8,4 @@ class Config:
     SECRET_KEY = SECRET_KEY
     HOST = 'http://localhost'
     SERV_HOST = f'http://{SERVING_HOST}'
-    PORT = '5757'
+    PORT = PORT

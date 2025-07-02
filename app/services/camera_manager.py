@@ -301,19 +301,22 @@ class CameraService:
                 return {"error": "start and end dates are required"}, 400
             
             # Parse ISO dates
-            start_date = datetime.fromisoformat(start_str).date()
-            end_date = datetime.fromisoformat(end_str).date()
-            today = now_local().date()
+            start_date = parse_iso(start_str).replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = parse_iso(end_str)
+            if end_date.time() == datetime.min.time():
+                end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+            today = now_local()
+
 
             # Validate date bounds
             if end_date < start_date:
                 return {"error": "end date must be after start date"}, 400
-            if end_date > today:
+            if end_date.date() > today.date():
                 return {"error": "end date cannot be in the future"}, 400
 
             # Build UTC datetime bounds (start of start day to end of end day)
-            start_utc = to_utc(datetime.combine(start_date, datetime.min.time()))
-            end_utc = to_utc(datetime.combine(end_date, datetime.max.time()))
+            start_utc = to_utc(start_date)
+            end_utc = to_utc(end_date)
 
             # Query CameraEvent between those UTC bounds
             events = (
@@ -393,7 +396,7 @@ class CameraService:
 
         except Exception as e:
             cam_stat_logger.error(f"Camera timeline error: {str(e)}")
-            return {"error": f"internal error: {str(e)}"}, 500
+            return {"error": f"internal error: {str(e)} start:{start_str}, end:{end_str}"}, 500
 
 
 # Module‑level instance

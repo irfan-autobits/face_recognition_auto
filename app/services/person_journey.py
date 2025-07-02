@@ -32,7 +32,7 @@ def get_person_journey_update(detections):
     # Initialize first segment with null-safe tag access
     first_utc = detections[0].timestamp.replace(microsecond=0)
     current_segment = {
-        'camera_tag': detections[0].m,  # Use legacy tag directly
+        'camera_tag': detections[0].legacy_camera_tag,  # Use legacy tag directly
         'start_utc': first_utc,
         'last_utc': first_utc
     }
