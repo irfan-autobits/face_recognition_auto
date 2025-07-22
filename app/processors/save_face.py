@@ -10,7 +10,8 @@ def save_image(frame, cam_id, box, subject, distance, is_unknown):
     """Save the detected face as an image file and return its relative path."""
     lock = Lock()
     face_dir = FACE_DIR  # FACE_DIR should be defined as your base folder for faces
-    
+    if is_unknown:
+        subject = f"Un_{subject}"
     # Create a timestamp string
     timestamp = datetime.now().strftime('%y%m%d-%H:%M:%S-%f')[:-4]
     

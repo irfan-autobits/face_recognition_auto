@@ -8,7 +8,8 @@ CLEAN_VARS = [
     'IS_RECOGNIZE','IS_RM_REPORT','IS_GEN_REPORT',
     'model_pack_name','CAMERA_SOURCES','HOST','PORT','API_KEY',
     'FACE_DET_LM','FACE_DET_TH','FACE_REC_TH','SECRET_KEY','USE_CUDA',
-    'SKIP_FRAME_CYCLE','AI_PROCESS_FRAMES','DETECTION_OVERLAY_OPTION', 'MAX_CAM_WORKERS'
+    'SKIP_FRAME_CYCLE','AI_PROCESS_FRAMES','DETECTION_OVERLAY_OPTION', 'MAX_CAM_WORKERS',
+    'DRAW_FONT_SIZE'
 ]
 for v in CLEAN_VARS:
     os.environ.pop(v, None)
@@ -74,6 +75,7 @@ SKIP_FRAME_CYCLE = int(os.getenv("SKIP_FRAME_CYCLE", 10))
 AI_PROCESS_FRAMES = int(os.getenv("AI_PROCESS_FRAMES", 2))
 DETECTION_OVERLAY_OPTION = int(os.getenv("DETECTION_OVERLAY_OPTION", 2)) # 1 = show last drawings, 2 = clean frames
 MAX_CAM_WORKERS = int(os.getenv("AI_PROCESS_FRAMES", 4))
+DRAW_FONT_SIZE = float(os.getenv("DRAW_FONT_SIZE", 0.5))
 
 # Flask secret key
 SECRET_KEY = os.getenv('SECRET_KEY', 'default_fallback_key')

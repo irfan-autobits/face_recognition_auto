@@ -151,13 +151,12 @@ class FaceDetectionProcessor:
                 color = (0, 255, 0)  # Green
             else:
                 color = (0, 0, 255)  # Red
-                subject = f"Un_{subject}"
                 is_unknown = True
 
             # Use your existing drawing function
             processed_frame = drawing_on_frame(
                 processed_frame, box, landmarks, landmark_3d_68, 
-                subject, color, probability, spoof_res, distance, draw_lan=False
+                subject, color, probability, spoof_res, distance, is_unknown, draw_lan=False
             )
             
             # Save image and database operations (only for fresh AI results, not cached)
@@ -166,7 +165,10 @@ class FaceDetectionProcessor:
                 face_url = f"{current_app.config['SERV_HOST']}:{current_app.config['PORT']}/faces/{face_path}"
                 
                 with self.app.app_context():
-                    subj = Subject.query.filter_by(subject_name=subject).first()
+                    if not is_unknown:
+                        subj = Subject.query.filter_by(subject_name=subject).first()
+                    else:
+                        subj = None  # This will store NULL in the subject foreign key column in Postgres
                     cam = Camera.query.filter_by(camera_name=cam_name).first()
                     det = Detection(
                         subject=subj,
