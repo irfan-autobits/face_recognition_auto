@@ -268,6 +268,7 @@ class CameraService:
         for name, details in env_sources.items():
             resp, st = self.add_camera(name, details['url'], details['tag'])
             results[name] = {'status': st, 'response': resp}
+        cam_stat_logger.info(f"bootstrap_from_env {results}")
         return results, 200
     
     def list_cameras(self):

@@ -7,7 +7,8 @@ from app.utils.pyutil import get_env_bool
 CLEAN_VARS = [
     'IS_RECOGNIZE','IS_RM_REPORT','IS_GEN_REPORT',
     'model_pack_name','CAMERA_SOURCES','HOST','PORT','API_KEY',
-    'FACE_DET_LM','FACE_DET_TH','FACE_REC_TH','SECRET_KEY','USE_CUDA'
+    'FACE_DET_LM','FACE_DET_TH','FACE_REC_TH','SECRET_KEY','USE_CUDA',
+    'SKIP_FRAME_CYCLE','AI_PROCESS_FRAMES','DETECTION_OVERLAY_OPTION', 'MAX_CAM_WORKERS'
 ]
 for v in CLEAN_VARS:
     os.environ.pop(v, None)
@@ -68,6 +69,11 @@ API_KEY      = os.getenv("API_KEY","00000000-0000-0000-0000-000000000002")
 FACE_DET_TH = float(os.getenv("FACE_DET_TH", 0.8))
 FACE_REC_TH = float(os.getenv("FACE_REC_TH", 0.8))
 FACE_DET_LM = int(os.getenv("FACE_DET_LM", 0))
+
+SKIP_FRAME_CYCLE = int(os.getenv("SKIP_FRAME_CYCLE", 10))
+AI_PROCESS_FRAMES = int(os.getenv("AI_PROCESS_FRAMES", 2))
+DETECTION_OVERLAY_OPTION = int(os.getenv("DETECTION_OVERLAY_OPTION", 2)) # 1 = show last drawings, 2 = clean frames
+MAX_CAM_WORKERS = int(os.getenv("AI_PROCESS_FRAMES", 4))
 
 # Flask secret key
 SECRET_KEY = os.getenv('SECRET_KEY', 'default_fallback_key')
