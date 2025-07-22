@@ -68,6 +68,9 @@ class CameraService:
         except IntegrityError:
             db.session.rollback()
             # we know the only duplicate‐key here is camera_name, so:
+            cam = Camera.query.filter_by(camera_name=name).first()
+            if cam and name not in self._vs_list:
+                self.start_camera(name)
             return {'error': f"Camera '{name}' already exists"}, 409
 
         # if we got here, the row is in the DB—now start the stream & log the event
