@@ -6,7 +6,7 @@ from app.utils.pyutil import get_env_bool
 # Load environment variables
 CLEAN_VARS = [
     'IS_RECOGNIZE','IS_RM_REPORT','IS_GEN_REPORT',
-    'model_pack_name','CAMERA_SOURCES','HOST','PORT','API_KEY',
+    'model_pack_name','CAMERA_SOURCES','HOST','PORT',
     'FACE_DET_LM','FACE_DET_TH','FACE_REC_TH','SECRET_KEY','USE_CUDA',
     'SKIP_FRAME_CYCLE','AI_PROCESS_FRAMES','DETECTION_OVERLAY_OPTION', 'MAX_CAM_WORKERS',
     'DRAW_FONT_SIZE'
@@ -62,9 +62,7 @@ cam_sources    = json.loads(CAMERA_SOURCES)
 
 # Network & API settings
 HOST         = os.getenv("HOST", "http://localhost")
-SERVING_HOST = os.getenv("SERVING_HOST", "localhost")
 PORT         = os.getenv("PORT", "8000")
-API_KEY      = os.getenv("API_KEY","00000000-0000-0000-0000-000000000002")
 
 # Face detection/recognition thresholds
 FACE_DET_TH = float(os.getenv("FACE_DET_TH", 0.8))

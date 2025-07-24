@@ -162,7 +162,7 @@ class FaceDetectionProcessor:
             # Save image and database operations (only for fresh AI results, not cached)
             if IS_GEN_REPORT and not is_cached:
                 face_path = save_image(processed_frame, cam_name, box, subject, distance, is_unknown)
-                face_url = f"{current_app.config['SERV_HOST']}:{current_app.config['PORT']}/faces/{face_path}"
+                face_url = f"/faces/{face_path}"  # Just the relative path!
                 
                 with self.app.app_context():
                     if not is_unknown:

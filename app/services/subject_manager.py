@@ -75,7 +75,7 @@ class SubjectService:
     def _create_image_record(self, disk_path, subject_id):
         """Centralized image record creation"""
         filename = disk_path.name
-        public_url = f"{current_app.config['SERV_HOST']}:{current_app.config['PORT']}/subserv/{filename}"
+        public_url = f"/subserv/{filename}"
         img = Img(image_url=public_url, subject_id=subject_id)
         sub_proc_logger.info(f"Image record commited for {filename}")
         db.session.add(img)
@@ -121,7 +121,7 @@ class SubjectService:
             image_data = []
             for file_obj in files:
                 filename = secure_filename(file_obj.filename)
-                public_url = f"{current_app.config['SERV_HOST']}:{current_app.config['PORT']}/subserv/{filename}"
+                public_url = f"/subserv/{filename}"
                 existing = Img.query.filter_by(image_url=public_url).first()
                 if existing:
                     continue  # skip duplicates
@@ -177,7 +177,7 @@ class SubjectService:
         disk_path = None
         try:
             filename = file_obj.filename
-            public_url = f"{current_app.config['SERV_HOST']}:{current_app.config['PORT']}/subserv/{filename}"            
+            public_url = f"/subserv/{filename}"            
             existing = Img.query.filter_by(image_url=public_url).first()
             if existing:
                 return {"error": "Image already exists"}, 409            
