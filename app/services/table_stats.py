@@ -226,34 +226,23 @@ def giving_detection_stats(time_window_start=None, time_window_end=None, interva
             .all()
         )
         # Subject stats for the window
-        # subject_stats = (
-        #     db.session.query(
-        #         func.coalesce(Subject.subject_name, literal('Unknown')).label('subject'),
-        #         func.count(Detection.id).label("count")
-        #     )
-        #     .select_from(Subject)
-        #     .outerjoin(Detection, and_(
-        #         Detection.subject_id == Subject.id,  # Join condition
-        #         Detection.timestamp >= start_utc,
-        #         Detection.timestamp <= end_utc
-        #     ))
-        #     .group_by(Subject.subject_name)
-        #     .all()
-        # )
-        subject_stats = (
-            db.session.query(
-                func.coalesce(Subject.subject_name, literal('Unknown')).label('subject'),
-                func.count(Detection.id).label('count')
-            )
-            .select_from(Detection)
-            .outerjoin(Subject, Detection.subject_id == Subject.id)
-            .filter(
-                Detection.timestamp >= start_utc,
-                Detection.timestamp <= end_utc
-            )
-            .group_by('subject')
-            .all()
-        )
+        # Option to include 'Unknown' subjects
+        include_unknown = False  # Set to False if you don't want 'Unknown' in results
+
+        subject_query = db.session.query(
+            func.coalesce(Subject.subject_name, literal('Unknown')).label('subject'),
+            func.count(Detection.id).label('count')
+        ).select_from(Detection).outerjoin(
+            Subject, Detection.subject_id == Subject.id
+        ).filter(
+            Detection.timestamp >= start_utc,
+            Detection.timestamp <= end_utc
+        ).group_by('subject')
+
+        subject_stats = subject_query.all()
+
+        if not include_unknown:
+            subject_stats = [r for r in subject_stats if r.subject != 'Unknown']
 
         return jsonify({
             "interval_stats": time_stats,
